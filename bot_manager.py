@@ -4,7 +4,7 @@ import os
 import getpass
 
 from services.browser_manager import criar_driver
-from services.afiliado_bot import AfiliadoBot, LoginNecessarioError
+from services.afiliado_bot import AfiliadoBot
 from config import (
     BOT_STATUS_OFFLINE,
     BOT_STATUS_RECRIANDO,
@@ -82,14 +82,13 @@ def criar_nova_instancia(job_id: str | None = None):
         set_bot_status(BOT_STATUS_RECRIANDO, "Recriando navegador do robô...")
 
         _driver = criar_driver()
-        _bot = AfiliadoBot(_driver)
+        _bot = AfiliadoBot(_driver, atualizar_status=set_bot_status)
         logger.info("%sInstância do bot criada com sucesso.", _job_tag(job_id))
 
         set_bot_status(BOT_STATUS_AGUARDANDO_LOGIN, "Verificando sessão do Mercado Livre...")
 
-        try:
-            _bot.garantir_portal_pronto()
-        except LoginNecessarioError:
+        _bot.garantir_portal_pronto()
+        if not _bot.esta_logado():
             set_bot_status(
                 BOT_STATUS_AGUARDANDO_LOGIN,
                 "Navegador oficial do robô está aberto no Selenium (via DISPLAY/VNC) aguardando login manual no perfil persistente."
@@ -100,7 +99,7 @@ def criar_nova_instancia(job_id: str | None = None):
                 os.getenv("DISPLAY"),
                 CHROME_PROFILE_DIR.resolve(),
             )
-            raise
+            return _bot
 
         set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.")
         logger.info("%sBot pronto para uso.", _job_tag(job_id))

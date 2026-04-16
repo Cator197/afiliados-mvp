@@ -13,7 +13,7 @@ from config import (
 )
 from repositories.jobs_repo import update_job_status
 from repositories.links_repo import create_link_gerado
-from services.afiliado_bot import LoginNecessarioError
+from services.afiliado_bot import LoginNecessarioError, FluxoGeracaoLinkError
 
 
 job_queue = queue.Queue()
@@ -57,14 +57,23 @@ def process_job(job_data: dict):
             link_afiliado = bot.gerar_link(url_original)
         except LoginNecessarioError:
             raise
-        except Exception as primeira_falha:
-            logger.exception(
-                "[JOB %s] Primeira tentativa falhou. Tentando reiniciar o bot e repetir uma vez.",
-                job_id
-            )
+        except FluxoGeracaoLinkError as primeira_falha:
+            if not primeira_falha.retryable:
+                raise
 
+            logger.exception(
+                "[JOB %s] Falha retryable na primeira tentativa (%s). Reiniciando bot para uma segunda tentativa.",
+                job_id,
+                primeira_falha
+            )
             bot = reiniciar_bot(job_id=job_id)
             link_afiliado = bot.gerar_link(url_original)
+        except Exception:
+            logger.exception(
+                "[JOB %s] Falha não mapeada na geração do link; sem retry automático para não mascarar erro real.",
+                job_id
+            )
+            raise
 
         _update_job_status_com_log(
             job_id=job_id,
@@ -88,7 +97,7 @@ def process_job(job_data: dict):
 
         logger.info("[JOB %s] Processamento finalizado com sucesso.", job_id)
 
-    except LoginNecessarioError as e:
+    except LoginNecessarioError:
         mensagem = (
             "Login manual necessário no portal de afiliados do Mercado Livre. "
             "Use o MESMO Chrome do Selenium já aberto no DISPLAY (ex.: Xvfb/VNC), faça login no perfil "

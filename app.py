@@ -26,7 +26,6 @@ from repositories.admin_repo import validate_admin_login
 from queue_manager import enqueue_job
 from bot_manager import get_bot_status
 
-import logging
 from config import DATA_DIR, LOGS_DIR
 
 DATA_DIR.mkdir(exist_ok=True)
@@ -224,12 +223,11 @@ def validar_usuario():
     usuario = get_user_by_codigo(codigo_usuario)
 
     if not usuario:
+        logging.warning(f"Tentativa de acesso com ID inexistente: {codigo_usuario}")
         return jsonify({
             "ok": False,
             "erro": "Usuário não encontrado."
         }), 404
-
-    logging.warning(f"Tentativa de acesso com ID inexistente: {codigo_usuario}")
 
     return jsonify({
         "ok": True,
@@ -384,8 +382,3 @@ def api_bot_status():
 
 if __name__ == "__main__":
     app.run(host=HOST, port=PORT, debug=DEBUG)
-    logging.basicConfig(
-        filename="logs/app.log",
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s"
-    )

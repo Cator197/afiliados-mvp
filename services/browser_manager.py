@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -22,6 +23,11 @@ def criar_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+
+    # Não força headless por padrão; permite ativar por configuração futura
+    headless_mode = os.getenv("CHROME_HEADLESS", "").lower() in {"1", "true", "yes"}
+    if headless_mode:
+        options.add_argument("--headless=new")
 
     # Perfil persistente: mantém cookies, login e sessão quando possível
     options.add_argument(f"--user-data-dir={profile_dir}")

@@ -12,6 +12,7 @@ from config import (
 )
 from repositories.jobs_repo import update_job_status
 from repositories.links_repo import create_link_gerado
+from services.afiliado_bot import LoginNecessarioError
 
 
 job_queue = queue.Queue()
@@ -43,6 +44,8 @@ def process_job(job_data: dict):
 
         try:
             link_afiliado = bot.gerar_link(url_original)
+        except LoginNecessarioError:
+            raise
         except Exception as primeira_falha:
             print(f"[WORKER] Primeira tentativa falhou no job {job_id}: {primeira_falha}")
             print("[WORKER] Tentando reiniciar o bot e repetir uma vez...")
@@ -70,6 +73,20 @@ def process_job(job_data: dict):
 
         print(f"[WORKER] Job {job_id} concluído com sucesso.")
 
+    except LoginNecessarioError as e:
+        mensagem = (
+            "Login manual necessário no portal de afiliados do Mercado Livre. "
+            "Abra o Chrome do robô no ambiente com DISPLAY (ex.: Xvfb), faça login no perfil "
+            "persistente e reenvie o job."
+        )
+        print(f"[WORKER] Job {job_id} bloqueado por login: {e}")
+
+        update_job_status(
+            job_id=job_id,
+            status=JOB_STATUS_ERRO,
+            finalizado_em=now_str(),
+            mensagem_erro=mensagem
+        )
     except Exception as e:
         print(f"[WORKER] Erro no job {job_id}: {e}")
 

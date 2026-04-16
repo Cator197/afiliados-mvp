@@ -6,6 +6,10 @@ from selenium.webdriver.support import expected_conditions as EC
 LINK_BUILDER_URL = "https://www.mercadolivre.com.br/afiliados/linkbuilder#hub"
 
 
+class LoginNecessarioError(Exception):
+    """Erro controlado quando o portal exige login manual."""
+
+
 class AfiliadoBot:
     def __init__(self, driver, timeout=20):
         self.driver = driver
@@ -13,9 +17,6 @@ class AfiliadoBot:
 
     def abrir_portal(self):
         self.driver.get(LINK_BUILDER_URL)
-
-    def aguardar_login_manual(self):
-        input("Faça login no portal do afiliado e depois pressione ENTER aqui... ")
 
     def portal_pronto(self) -> bool:
         try:
@@ -33,11 +34,9 @@ class AfiliadoBot:
         if self.portal_pronto():
             return
 
-        print("[BOT] Portal não está pronto. Pode ser necessário login.")
-        self.aguardar_login_manual()
-
-        if not self.portal_pronto():
-            raise Exception("Não foi possível deixar o portal do afiliado pronto após o login.")
+        raise LoginNecessarioError(
+            "Portal do afiliado exige login manual no perfil atual do Chrome."
+        )
 
     def gerar_link(self, url_produto: str) -> str:
         self.garantir_portal_pronto()

@@ -300,7 +300,11 @@ def solicitar_link():
     if bot_status["status"] in ("aguardando_login_manual", "erro_recuperacao"):
         return jsonify({
             "ok": False,
-            "erro": "O gerador está temporariamente indisponível. Aguarde a regularização do robô."
+            "erro": (
+                "Gerador indisponível: navegador oficial do robô está aberto no Selenium e "
+                "aguarda login manual via VNC no perfil persistente."
+            ),
+            "bot": bot_status
         }), 503
 
     job_id = str(uuid.uuid4())

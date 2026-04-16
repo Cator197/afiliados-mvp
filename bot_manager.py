@@ -35,7 +35,9 @@ def set_bot_status(status, message):
 def get_bot_status():
     return {
         "status": _bot_status,
-        "message": _bot_message
+        "message": _bot_message,
+        "display": os.getenv("DISPLAY"),
+        "chrome_profile_dir": str(CHROME_PROFILE_DIR.resolve()),
     }
 
 
@@ -90,9 +92,14 @@ def criar_nova_instancia(job_id: str | None = None):
         except LoginNecessarioError:
             set_bot_status(
                 BOT_STATUS_AGUARDANDO_LOGIN,
-                "Chrome aberto com perfil persistente, mas login manual é necessário."
+                "Navegador oficial do robô está aberto no Selenium (via DISPLAY/VNC) aguardando login manual no perfil persistente."
             )
-            logger.warning("%sBot criado, porém requer login manual.", _job_tag(job_id))
+            logger.warning(
+                "%sBot criado, porém requer login manual no mesmo Chrome do Selenium. DISPLAY=%s | profile=%s",
+                _job_tag(job_id),
+                os.getenv("DISPLAY"),
+                CHROME_PROFILE_DIR.resolve(),
+            )
             raise
 
         set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.")

@@ -22,6 +22,12 @@ class AfiliadoBot:
         logger.info("[BOT FLOW] Etapa: abrir página do portal.")
         self.driver.get(LINK_BUILDER_URL)
 
+    def preparar_login_manual(self):
+        logger.info(
+            "[BOT FLOW] Login manual necessário: mantendo Chrome do Selenium aberto no portal para autenticação via VNC."
+        )
+        self.abrir_portal()
+
     def portal_pronto(self) -> bool:
         try:
             logger.info("[BOT FLOW] Etapa: validar login/sessão no portal.")
@@ -41,6 +47,7 @@ class AfiliadoBot:
         if self.portal_pronto():
             return
 
+        self.preparar_login_manual()
         raise LoginNecessarioError(
             "Portal do afiliado exige login manual no perfil atual do Chrome."
         )

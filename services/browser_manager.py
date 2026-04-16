@@ -99,8 +99,8 @@ def criar_driver():
     chromedriver_bin = _resolver_caminho_chromedriver()
     chrome_bin = CHROME_BINARY_PATH or shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser")
 
-    # Respeita DISPLAY já existente (Xvfb) e permite definir por configuração.
-    if CHROME_DISPLAY and not os.getenv("DISPLAY"):
+    # Em VPS com Xvfb/VNC, prioriza DISPLAY configurado do robô para garantir navegador visível.
+    if CHROME_DISPLAY:
         os.environ["DISPLAY"] = CHROME_DISPLAY
 
     logger.info(

@@ -91,8 +91,8 @@ def process_job(job_data: dict):
     except LoginNecessarioError as e:
         mensagem = (
             "Login manual necessário no portal de afiliados do Mercado Livre. "
-            "Abra o Chrome do robô no ambiente com DISPLAY (ex.: Xvfb), faça login no perfil "
-            "persistente e reenvie o job."
+            "Use o MESMO Chrome do Selenium já aberto no DISPLAY (ex.: Xvfb/VNC), faça login no perfil "
+            "persistente oficial do robô e reenvie o job."
         )
         logger.exception("[JOB %s] Job bloqueado por login manual necessário.", job_id)
 

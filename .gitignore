@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+
+# Ambiente virtual
+venv/
+.env
+
+# Banco de dados
+*.db
+
+# Logs
+logs/
+*.log
+
+# Selenium / Chrome profile (CRÍTICO)
+data/chrome_profile/
+
+# IDE
+.idea/
+.vscode/
+
+# Sistema
+.DS_Store
+Thumbs.db

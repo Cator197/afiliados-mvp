@@ -1,0 +1,164 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    color: #222;
+}
+
+.container {
+    max-width: 900px;
+    margin: 40px auto;
+    background: #fff;
+    padding: 28px;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+h1, h2, h3 {
+    margin-top: 0;
+}
+
+.subtitle {
+    color: #555;
+    margin-bottom: 20px;
+}
+
+.input-group {
+    margin-bottom: 16px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+input[type="text"],
+input[type="password"],
+textarea,
+select {
+    width: 100%;
+    padding: 14px;
+    border: 1px solid #cfd6dd;
+    border-radius: 10px;
+    font-size: 15px;
+    outline: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    border-color: #3483fa;
+}
+
+button,
+.btn {
+    display: inline-block;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 10px;
+    background: #3483fa;
+    color: white;
+    font-size: 15px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+button:hover,
+.btn:hover {
+    background: #2968c8;
+}
+
+button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+.status-box,
+.result-box,
+.message-box {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 10px;
+    background: #f7f8fa;
+    border: 1px solid #e4e8ee;
+}
+
+.result-box a {
+    word-break: break-all;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 760px;
+}
+
+th, td {
+    padding: 12px;
+    border-bottom: 1px solid #e6e6e6;
+    text-align: left;
+    vertical-align: top;
+}
+
+th {
+    background: #f8fafc;
+}
+
+.badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: bold;
+    background: #e8eef9;
+    color: #204a87;
+}
+
+.badge.na_fila,
+.badge.processando {
+    background: #fff4d6;
+    color: #8a6500;
+}
+
+.badge.aguardando_verificacao {
+    background: #eaf2ff;
+    color: #2457a7;
+}
+
+.badge.compra_confirmada {
+    background: #e6f7ea;
+    color: #237a3b;
+}
+
+.badge.compra_nao_confirmada,
+.badge.erro {
+    background: #fdeaea;
+    color: #a12b2b;
+}
+
+.badge.cashback_pago {
+    background: #ebfff2;
+    color: #117a3d;
+}
+
+.small {
+    font-size: 13px;
+    color: #666;
+}

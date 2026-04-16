@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu histórico</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Histórico de {{ usuario.nome }}</h1>
+        <p class="subtitle">
+            Aqui você acompanha os links já gerados e o andamento do cashback.
+        </p>
+
+        <div class="actions">
+            <a class="btn" href="/usuario/{{ usuario.codigo_usuario }}">Gerar novo link</a>
+            <a class="btn" href="/">Trocar de ID</a>
+        </div>
+
+        <div id="mensagem" class="message-box" style="display:none;"></div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>URL original</th>
+                        <th>Link afiliado</th>
+                        <th>Status</th>
+
+                        <th>Cashback</th>
+                    </tr>
+                </thead>
+                <tbody id="historicoBody">
+                    <tr>
+                        <td colspan="6">Carregando histórico...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        window.USUARIO = {
+            id: {{ usuario.id }},
+            codigo_usuario: "{{ usuario.codigo_usuario }}",
+            nome: "{{ usuario.nome }}"
+        };
+    </script>
+
+    <script>
+        const historicoBody = document.getElementById("historicoBody");
+        const mensagem = document.getElementById("mensagem");
+
+        function badgeHtml(status) {
+            return `<span class="badge ${status}">${status}</span>`;
+        }
+
+        function valorOuTraco(valor) {
+            if (valor === null || valor === undefined || valor === "") {
+                return "-";
+            }
+            return Number(valor).toFixed(2);
+        }
+
+
+        function formatarUrl(url) {
+            if (!url) return "-";
+
+            const limite = 50; // tamanho máximo visível
+
+            if (url.length <= limite) return url;
+
+            return url.substring(0, limite) + "...";
+        }
+
+
+        async function carregarHistorico() {
+            try {
+                const resp = await fetch(`/api/usuario/${encodeURIComponent(window.USUARIO.codigo_usuario)}/links`);
+                const data = await resp.json();
+
+                if (!data.ok) {
+                    mensagem.style.display = "block";
+                    mensagem.textContent = data.erro || "Erro ao carregar histórico.";
+                    historicoBody.innerHTML = `<tr><td colspan="6">Não foi possível carregar os dados.</td></tr>`;
+                    return;
+                }
+
+                const links = data.links || [];
+
+                if (!links.length) {
+                    historicoBody.innerHTML = `<tr><td colspan="6">Nenhum link gerado ainda.</td></tr>`;
+                    return;
+                }
+
+                historicoBody.innerHTML = links.map(link => `
+                    <tr>
+                        <td>${link.criado_em || "-"}</td>
+                        <td>
+                            <a href="${link.url_original}" target="_blank">
+                                ${formatarUrl(link.url_original)}
+                            </a>
+                        </td>
+                        <td>
+                            ${link.url_afiliado
+                                ? `<a href="${link.url_afiliado}" target="_blank">${link.url_afiliado}</a>`
+                                : "-"}
+                        </td>
+                        <td>${badgeHtml(link.status)}</td>
+
+                        <td>R$ ${valorOuTraco(link.valor_cashback)}</td>
+                    </tr>
+                `).join("");
+
+            } catch (e) {
+                mensagem.style.display = "block";
+                mensagem.textContent = "Erro de comunicação com o servidor.";
+                historicoBody.innerHTML = `<tr><td colspan="6">Erro ao carregar histórico.</td></tr>`;
+            }
+        }
+
+        carregarHistorico();
+    </script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 1400px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div>
+                <h1>Painel administrativo</h1>
+                <p class="subtitle">Logado como {{ admin_username }}</p>
+            </div>
+            <div class="actions">
+                <a class="btn" href="/admin/logout">Sair</a>
+            </div>
+        </div>
+
+        <div id="botStatusBox" class="message-box">
+            Verificando status do robô...
+        </div>
+
+        <form method="GET" action="/admin/links" class="message-box">
+            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;">
+                <div class="input-group" style="margin-bottom:0;">
+                    <label for="codigo_usuario">Filtrar por ID do usuário</label>
+                    <input type="text" id="codigo_usuario" name="codigo_usuario" value="{{ filtros.codigo_usuario }}">
+                </div>
+
+                <div class="input-group" style="margin-bottom:0;">
+                    <label for="status">Filtrar por status</label>
+                    <select id="status" name="status">
+                        <option value="">Todos</option>
+                        <option value="aguardando_verificacao" {% if filtros.status == 'aguardando_verificacao' %}selected{% endif %}>aguardando_verificacao</option>
+                        <option value="compra_confirmada" {% if filtros.status == 'compra_confirmada' %}selected{% endif %}>compra_confirmada</option>
+                        <option value="compra_nao_confirmada" {% if filtros.status == 'compra_nao_confirmada' %}selected{% endif %}>compra_nao_confirmada</option>
+                        <option value="cashback_pago" {% if filtros.status == 'cashback_pago' %}selected{% endif %}>cashback_pago</option>
+                    </select>
+                </div>
+
+                <div class="actions" style="margin-top:0;">
+                    <button type="submit">Filtrar</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Data</th>
+                        <th>Usuário</th>
+                        <th>URL original</th>
+                        <th>Link afiliado</th>
+                        <th>Status</th>
+
+                        <th>% Cashback</th>
+                        <th>Cashback</th>
+                        <th>Observações</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if links %}
+                        {% for link in links %}
+                            <tr>
+                                <form method="POST" action="/admin/links/{{ link.id }}/atualizar">
+                                    <td>{{ link.id }}</td>
+                                    <td>{{ link.criado_em }}</td>
+                                    <td>
+                                        <strong>{{ link.nome }}</strong><br>
+                                        <span class="small">{{ link.codigo_usuario }}</span>
+                                    </td>
+                                    <a href="{{ link.url_original }}" target="_blank">
+                                        {{ link.url_original[:50] ~ '...' if link.url_original|length > 50 else link.url_original }}
+                                    </a>
+                                    <td>
+                                        {% if link.url_afiliado %}
+                                            <a href="{{ link.url_afiliado }}" target="_blank">{{ link.url_afiliado }}</a>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td style="min-width:180px;">
+                                        <select name="status">
+                                            <option value="aguardando_verificacao" {% if link.status == 'aguardando_verificacao' %}selected{% endif %}>aguardando_verificacao</option>
+                                            <option value="compra_confirmada" {% if link.status == 'compra_confirmada' %}selected{% endif %}>compra_confirmada</option>
+                                            <option value="compra_nao_confirmada" {% if link.status == 'compra_nao_confirmada' %}selected{% endif %}>compra_nao_confirmada</option>
+                                            <option value="cashback_pago" {% if link.status == 'cashback_pago' %}selected{% endif %}>cashback_pago</option>
+                                        </select>
+                                    </td>
+                                    <td style="min-width:120px;">
+                                        <input type="text" name="valor_comissao" value="{{ link.valor_comissao if link.valor_comissao is not none else '' }}" placeholder="0.00">
+                                    </td>
+                                    <td style="min-width:120px;">
+                                        <input type="text" name="percentual_cashback" value="{{ link.percentual_cashback if link.percentual_cashback is not none else '' }}" placeholder="50">
+                                    </td>
+                                    <td>
+                                        {% if link.valor_cashback is not none %}
+                                            R$ {{ "%.2f"|format(link.valor_cashback) }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td style="min-width:200px;">
+                                        <input type="text" name="observacoes_admin" value="{{ link.observacoes_admin if link.observacoes_admin else '' }}" placeholder="Observação">
+                                    </td>
+                                    <td>
+                                        <button type="submit">Salvar</button>
+                                    </td>
+                                </form>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="11">Nenhum link encontrado.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+    async function carregarStatusBot() {
+        const box = document.getElementById("botStatusBox");
+
+        try {
+            const resp = await fetch("/api/admin/bot-status");
+            const data = await resp.json();
+
+            if (!data.ok) {
+                box.textContent = "Não foi possível verificar o status do robô.";
+                box.style.background = "#fff3f3";
+                box.style.borderColor = "#f0b7b7";
+                return;
+            }
+
+            const status = data.bot.status;
+            const message = data.bot.message;
+
+            box.innerHTML = `<strong>Status do robô:</strong> ${status}<br><span class="small">${message}</span>`;
+
+            if (status === "online") {
+                box.style.background = "#e6f7ea";
+                box.style.borderColor = "#b6e3c1";
+            } else if (status === "aguardando_login_manual") {
+                box.style.background = "#fff8e6";
+                box.style.borderColor = "#f2d48a";
+            } else if (status === "erro_recuperacao") {
+                box.style.background = "#fff3f3";
+                box.style.borderColor = "#f0b7b7";
+            } else {
+                box.style.background = "#f7f8fa";
+                box.style.borderColor = "#e4e8ee";
+            }
+        } catch (e) {
+            box.textContent = "Erro ao consultar o status do robô.";
+            box.style.background = "#fff3f3";
+            box.style.borderColor = "#f0b7b7";
+        }
+    }
+
+    carregarStatusBot();
+    setInterval(carregarStatusBot, 5000);
+</script>
+</body>
+</html>

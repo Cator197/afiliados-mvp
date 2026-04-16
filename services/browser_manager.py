@@ -22,6 +22,31 @@ LINK_BUILDER_URL = "https://www.mercadolivre.com.br/afiliados/linkbuilder#hub"
 logger = logging.getLogger(__name__)
 
 
+def _resolver_caminho_chrome() -> str | None:
+    if CHROME_BINARY_PATH:
+        caminho_configurado = Path(CHROME_BINARY_PATH).expanduser()
+        if caminho_configurado.exists():
+            return str(caminho_configurado)
+        logger.warning(
+            "CHROME_BINARY_PATH configurado, mas não encontrado: %s",
+            CHROME_BINARY_PATH,
+        )
+
+    candidatos = [
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        shutil.which("google-chrome"),
+        shutil.which("google-chrome-stable"),
+        shutil.which("chromium"),
+        shutil.which("chromium-browser"),
+    ]
+    for caminho in candidatos:
+        if caminho:
+            return caminho
+
+    return None
+
+
 def _resolver_caminho_chromedriver() -> str | None:
     if CHROMEDRIVER_PATH:
         return CHROMEDRIVER_PATH
@@ -35,9 +60,10 @@ def _resolver_caminho_chromedriver() -> str | None:
 
 def _montar_options(profile_dir: Path) -> Options:
     options = Options()
+    chrome_bin = _resolver_caminho_chrome()
 
-    if CHROME_BINARY_PATH:
-        options.binary_location = CHROME_BINARY_PATH
+    if chrome_bin:
+        options.binary_location = chrome_bin
 
     # Abre como "app", com menos interface e menos chance de fechar por engano
     options.add_argument(f"--app={LINK_BUILDER_URL}")
@@ -97,7 +123,7 @@ def criar_driver():
     profile_dir = CHROME_PROFILE_DIR.resolve()
     profile_dir.mkdir(parents=True, exist_ok=True)
     chromedriver_bin = _resolver_caminho_chromedriver()
-    chrome_bin = CHROME_BINARY_PATH or shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser")
+    chrome_bin = _resolver_caminho_chrome()
 
     # Em VPS com Xvfb/VNC, prioriza DISPLAY configurado do robô para garantir navegador visível.
     if CHROME_DISPLAY:
@@ -113,6 +139,10 @@ def criar_driver():
     )
 
     options = _montar_options(profile_dir)
+    logger.info(
+        "Chrome binary_location configurado no Selenium: %s",
+        options.binary_location or "não configurado (Selenium Manager decide)"
+    )
     try:
         driver = _criar_driver_com_fallback(options)
     except Exception:

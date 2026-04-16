@@ -11,7 +11,8 @@ DB_PATH = DATA_DIR / "afiliados.db"
 SECRET_KEY = os.getenv("SECRET_KEY", "trocar_essa_chave_no_futuro")
 
 # 127.0.0.1 permite apenas acesso local; 0.0.0.0 libera acesso externo (ex.: VPS)
-HOST = os.getenv("HOST", "0.0.0.0")
+# FLASK_HOST é priorizado para evitar conflito com variáveis globais de ambiente.
+HOST = (os.getenv("FLASK_HOST") or os.getenv("HOST") or "0.0.0.0").strip() or "0.0.0.0"
 PORT = int(os.getenv("PORT", "5000"))
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 

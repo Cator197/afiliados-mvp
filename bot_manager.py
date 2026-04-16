@@ -1,4 +1,7 @@
 import threading
+import logging
+import os
+import getpass
 
 from services.browser_manager import criar_driver
 from services.afiliado_bot import AfiliadoBot, LoginNecessarioError
@@ -8,12 +11,15 @@ from config import (
     BOT_STATUS_ONLINE,
     BOT_STATUS_AGUARDANDO_LOGIN,
     BOT_STATUS_ERRO_RECUPERACAO,
+    CHROME_DISPLAY,
+    CHROME_PROFILE_DIR,
 )
 
 
 _driver = None
 _bot = None
 _bot_lock = threading.Lock()
+logger = logging.getLogger(__name__)
 
 _bot_status = BOT_STATUS_OFFLINE
 _bot_message = "Bot ainda não inicializado."
@@ -23,7 +29,7 @@ def set_bot_status(status, message):
     global _bot_status, _bot_message
     _bot_status = status
     _bot_message = message
-    print(f"[BOT STATUS] {status} - {message}")
+    logger.info("[BOT STATUS] %s - %s", status, message)
 
 
 def get_bot_status():
@@ -44,14 +50,38 @@ def driver_esta_vivo(driver) -> bool:
         return False
 
 
-def criar_nova_instancia():
+def _job_tag(job_id: str | None) -> str:
+    return f"[JOB {job_id}] " if job_id else ""
+
+
+def _log_ambiente_selenium(job_id: str | None = None):
+    try:
+        usuario = getpass.getuser()
+    except Exception:
+        usuario = os.getenv("USER", "desconhecido")
+
+    prefixo = _job_tag(job_id)
+    logger.info(
+        "%sContexto Selenium: DISPLAY=%s | CHROME_DISPLAY=%s | CHROME_PROFILE_DIR=%s | user=%s",
+        prefixo,
+        os.getenv("DISPLAY"),
+        CHROME_DISPLAY,
+        CHROME_PROFILE_DIR,
+        usuario,
+    )
+
+
+def criar_nova_instancia(job_id: str | None = None):
     global _driver, _bot
 
     try:
+        logger.info("%sCriando nova instância do bot.", _job_tag(job_id))
+        _log_ambiente_selenium(job_id)
         set_bot_status(BOT_STATUS_RECRIANDO, "Recriando navegador do robô...")
 
         _driver = criar_driver()
         _bot = AfiliadoBot(_driver)
+        logger.info("%sInstância do bot criada com sucesso.", _job_tag(job_id))
 
         set_bot_status(BOT_STATUS_AGUARDANDO_LOGIN, "Verificando sessão do Mercado Livre...")
 
@@ -62,9 +92,11 @@ def criar_nova_instancia():
                 BOT_STATUS_AGUARDANDO_LOGIN,
                 "Chrome aberto com perfil persistente, mas login manual é necessário."
             )
+            logger.warning("%sBot criado, porém requer login manual.", _job_tag(job_id))
             raise
 
         set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.")
+        logger.info("%sBot pronto para uso.", _job_tag(job_id))
         return _bot
 
     except Exception as e:
@@ -72,31 +104,35 @@ def criar_nova_instancia():
             BOT_STATUS_ERRO_RECUPERACAO,
             f"Não foi possível recuperar o robô automaticamente: {e}"
         )
+        logger.exception("%sFalha ao criar/recriar instância do bot.", _job_tag(job_id))
         raise
 
 
-def get_bot():
+def get_bot(job_id: str | None = None):
     global _bot, _driver
 
     with _bot_lock:
         if not driver_esta_vivo(_driver) or _bot is None:
-            print("[BOT] Driver indisponível. Recriando...")
-            return criar_nova_instancia()
+            logger.warning("%sDriver indisponível. Recriando bot.", _job_tag(job_id))
+            return criar_nova_instancia(job_id=job_id)
 
+        logger.info("%sReusando instância atual do bot.", _job_tag(job_id))
         return _bot
 
 
-def reiniciar_bot():
+def reiniciar_bot(job_id: str | None = None):
     global _driver, _bot
 
     with _bot_lock:
+        logger.warning("%sReiniciando bot sob demanda.", _job_tag(job_id))
         try:
             if _driver is not None and driver_esta_vivo(_driver):
                 _driver.quit()
+                logger.info("%sDriver anterior encerrado com sucesso.", _job_tag(job_id))
         except Exception:
-            pass
+            logger.exception("%sFalha ao encerrar driver anterior durante reinício.", _job_tag(job_id))
 
         _driver = None
         _bot = None
 
-        return criar_nova_instancia()
+        return criar_nova_instancia(job_id=job_id)

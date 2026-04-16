@@ -1,5 +1,6 @@
 import queue
 import threading
+import logging
 from datetime import datetime
 
 from bot_manager import get_bot, reiniciar_bot
@@ -16,6 +17,7 @@ from services.afiliado_bot import LoginNecessarioError
 
 
 job_queue = queue.Queue()
+logger = logging.getLogger(__name__)
 
 
 def now_str():
@@ -23,7 +25,16 @@ def now_str():
 
 
 def enqueue_job(job_data: dict):
+    job_id = job_data.get("job_id", "desconhecido")
+    logger.info("[JOB %s] Enfileirando job.", job_id)
     job_queue.put(job_data)
+    logger.info("[JOB %s] Job enfileirado com sucesso.", job_id)
+
+
+def _update_job_status_com_log(job_id: str, status: str, **kwargs):
+    logger.info("[JOB %s] Alterando status para '%s'.", job_id, status)
+    update_job_status(job_id=job_id, status=status, **kwargs)
+    logger.info("[JOB %s] Status '%s' persistido.", job_id, status)
 
 
 def process_job(job_data: dict):
@@ -32,34 +43,37 @@ def process_job(job_data: dict):
     url_original = job_data["url_original"]
 
     try:
-        print(f"[WORKER] Iniciando job {job_id}")
+        logger.info("[JOB %s] Iniciando processamento do job.", job_id)
 
-        update_job_status(
+        _update_job_status_com_log(
             job_id=job_id,
             status=JOB_STATUS_PROCESSANDO,
             iniciado_em=now_str()
         )
 
-        bot = get_bot()
+        bot = get_bot(job_id=job_id)
 
         try:
             link_afiliado = bot.gerar_link(url_original)
         except LoginNecessarioError:
             raise
         except Exception as primeira_falha:
-            print(f"[WORKER] Primeira tentativa falhou no job {job_id}: {primeira_falha}")
-            print("[WORKER] Tentando reiniciar o bot e repetir uma vez...")
+            logger.exception(
+                "[JOB %s] Primeira tentativa falhou. Tentando reiniciar o bot e repetir uma vez.",
+                job_id
+            )
 
-            bot = reiniciar_bot()
+            bot = reiniciar_bot(job_id=job_id)
             link_afiliado = bot.gerar_link(url_original)
 
-        update_job_status(
+        _update_job_status_com_log(
             job_id=job_id,
             status=JOB_STATUS_CONCLUIDO,
             finalizado_em=now_str(),
             resultado_link=link_afiliado
         )
 
+        logger.info("[JOB %s] Persistindo link gerado.", job_id)
         create_link_gerado(
             usuario_id=usuario_id,
             job_id=job_id,
@@ -70,8 +84,9 @@ def process_job(job_data: dict):
             criado_em=now_str(),
             atualizado_em=now_str()
         )
+        logger.info("[JOB %s] Link gerado persistido com sucesso.", job_id)
 
-        print(f"[WORKER] Job {job_id} concluído com sucesso.")
+        logger.info("[JOB %s] Processamento finalizado com sucesso.", job_id)
 
     except LoginNecessarioError as e:
         mensagem = (
@@ -79,35 +94,40 @@ def process_job(job_data: dict):
             "Abra o Chrome do robô no ambiente com DISPLAY (ex.: Xvfb), faça login no perfil "
             "persistente e reenvie o job."
         )
-        print(f"[WORKER] Job {job_id} bloqueado por login: {e}")
+        logger.exception("[JOB %s] Job bloqueado por login manual necessário.", job_id)
 
-        update_job_status(
+        _update_job_status_com_log(
             job_id=job_id,
             status=JOB_STATUS_ERRO,
             finalizado_em=now_str(),
             mensagem_erro=mensagem
         )
     except Exception as e:
-        print(f"[WORKER] Erro no job {job_id}: {e}")
+        logger.exception("[JOB %s] Erro ao processar job.", job_id)
 
-        update_job_status(
+        _update_job_status_com_log(
             job_id=job_id,
             status=JOB_STATUS_ERRO,
             finalizado_em=now_str(),
             mensagem_erro=str(e)
         )
+    finally:
+        logger.info("[JOB %s] Encerrando processamento do job.", job_id)
 
 
 def worker_loop():
-    print("[WORKER] Worker iniciado e aguardando jobs...")
+    logger.info("[WORKER] Worker iniciado e aguardando jobs.")
 
     while True:
         job_data = job_queue.get()
+        job_id = job_data.get("job_id", "desconhecido")
+        logger.info("[JOB %s] Job recebido pelo worker.", job_id)
 
         try:
             process_job(job_data)
         finally:
             job_queue.task_done()
+            logger.info("[JOB %s] task_done sinalizado para a fila.", job_id)
 
 
 worker_thread = threading.Thread(target=worker_loop, daemon=True)

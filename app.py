@@ -304,6 +304,12 @@ def solicitar_link():
         }), 503
 
     job_id = str(uuid.uuid4())
+    app.logger.info(
+        "[JOB %s] Recebida solicitação de geração de link | usuario=%s | url=%s",
+        job_id,
+        codigo_usuario,
+        url,
+    )
 
     create_job(
         job_id=job_id,
@@ -312,14 +318,14 @@ def solicitar_link():
         status=JOB_STATUS_NA_FILA,
         criado_em=now_str()
     )
+    app.logger.info("[JOB %s] Job persistido com status inicial '%s'.", job_id, JOB_STATUS_NA_FILA)
 
     enqueue_job({
         "job_id": job_id,
         "usuario_id": usuario["id"],
         "url_original": url
     })
-
-    logging.info(f"Novo job criado: {job_id} | usuario={codigo_usuario} | url={url}")
+    app.logger.info("[JOB %s] Job enviado para fila interna.", job_id)
 
     return jsonify({
         "ok": True,

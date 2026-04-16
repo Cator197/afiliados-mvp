@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import shutil
+import logging
 
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
@@ -18,6 +19,7 @@ from config import (
 
 
 LINK_BUILDER_URL = "https://www.mercadolivre.com.br/afiliados/linkbuilder#hub"
+logger = logging.getLogger(__name__)
 
 
 def _resolver_caminho_chromedriver() -> str | None:
@@ -70,10 +72,12 @@ def _criar_driver_com_fallback(options: Options):
 
     # Caminho recomendado para servidor: usar chromedriver instalado no sistema.
     if chromedriver_bin:
+        logger.info("Subindo ChromeDriver pelo caminho explícito: %s", chromedriver_bin)
         return webdriver.Chrome(service=Service(chromedriver_bin), options=options)
 
     # Selenium Manager (Selenium 4.6+) como fallback sem acoplamento ao webdriver-manager.
     try:
+        logger.info("Subindo ChromeDriver via Selenium Manager.")
         return webdriver.Chrome(options=options)
     except WebDriverException:
         if not CHROME_USE_WEBDRIVER_MANAGER_FALLBACK:
@@ -82,6 +86,7 @@ def _criar_driver_com_fallback(options: Options):
     # Último fallback opcional: webdriver-manager (pode depender de internet em runtime).
     from webdriver_manager.chrome import ChromeDriverManager
 
+    logger.warning("Usando webdriver-manager como último fallback para subir o ChromeDriver.")
     return webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
         options=options,
@@ -91,16 +96,32 @@ def _criar_driver_com_fallback(options: Options):
 def criar_driver():
     profile_dir = CHROME_PROFILE_DIR.resolve()
     profile_dir.mkdir(parents=True, exist_ok=True)
+    chromedriver_bin = _resolver_caminho_chromedriver()
+    chrome_bin = CHROME_BINARY_PATH or shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser")
 
     # Respeita DISPLAY já existente (Xvfb) e permite definir por configuração.
     if CHROME_DISPLAY and not os.getenv("DISPLAY"):
         os.environ["DISPLAY"] = CHROME_DISPLAY
 
+    logger.info(
+        "Inicializando Selenium: profile_dir=%s | headless=%s | display=%s | chrome_bin=%s | chromedriver=%s",
+        profile_dir,
+        CHROME_HEADLESS,
+        os.getenv("DISPLAY"),
+        chrome_bin,
+        chromedriver_bin or "selenium-manager/fallback"
+    )
+
     options = _montar_options(profile_dir)
-    driver = _criar_driver_com_fallback(options)
+    try:
+        driver = _criar_driver_com_fallback(options)
+    except Exception:
+        logger.exception("Falha ao subir o driver Chrome/Selenium.")
+        raise
 
     driver.execute_script(
         "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
     )
+    logger.info("Driver Chrome/Selenium inicializado com sucesso.")
 
     return driver

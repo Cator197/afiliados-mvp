@@ -2,7 +2,6 @@ import logging
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 
 
@@ -46,14 +45,15 @@ RESULTADO_LINK_SELECTORS = [
 
 
 class AfiliadoBot:
-    def __init__(self, driver, timeout=20):
+    def __init__(self, driver, timeout=20, atualizar_status=None):
         self.driver = driver
         self.wait = WebDriverWait(driver, timeout)
+        self.atualizar_status = atualizar_status
 
     def abrir_portal(self):
         logger.info("[BOT FLOW] Etapa: abrir página do portal.")
         self.driver.get(LINK_BUILDER_URL)
-        self.wait.until(EC.url_contains("mercadolivre.com.br"))
+        self._aguardar_login_ou_portal()
 
     def _esta_em_tela_login(self) -> bool:
         url_atual = (self.driver.current_url or "").lower()
@@ -62,6 +62,7 @@ class AfiliadoBot:
 
         seletores_login = [
             (By.CSS_SELECTOR, "input[name='user_id']"),
+            (By.CSS_SELECTOR, "input[type='email']"),
             (By.CSS_SELECTOR, "input[type='password']"),
             (By.XPATH, "//button[contains(., 'Entrar')]"),
             (By.XPATH, "//button[contains(., 'Continuar')]"),
@@ -71,6 +72,38 @@ class AfiliadoBot:
                 return True
 
         return False
+
+    def _portal_tem_campo_url(self) -> bool:
+        for by, value in URL_INPUT_SELECTORS:
+            elementos = self.driver.find_elements(by, value)
+            for elemento in elementos:
+                try:
+                    if elemento.is_displayed():
+                        return True
+                except StaleElementReferenceException:
+                    continue
+        return False
+
+    def _aguardar_login_ou_portal(self):
+        def _portal_ou_login(driver):
+            if self._esta_em_tela_login():
+                return "login"
+            if self._portal_tem_campo_url():
+                return "portal"
+            url_atual = (driver.current_url or "").lower()
+            if "mercadolivre.com.br" in url_atual:
+                return "dominio"
+            return False
+
+        resultado = self.wait.until(_portal_ou_login)
+        if resultado == "login":
+            if callable(self.atualizar_status):
+                self.atualizar_status(
+                    "aguardando_login_manual",
+                    "Aguardando login manual no navegador",
+                )
+            logger.warning("[BOT FLOW] Aguardando login manual no navegador.")
+        return resultado
 
     def _wait_first_element(
         self,
@@ -108,6 +141,12 @@ class AfiliadoBot:
         )
         self.abrir_portal()
 
+    def esta_logado(self) -> bool:
+        logger.info("[BOT FLOW] Etapa: verificar se sessão está autenticada.")
+        self.driver.get(LINK_BUILDER_URL)
+        self._aguardar_login_ou_portal()
+        return not self._esta_em_tela_login()
+
     def portal_pronto(self) -> bool:
         try:
             logger.info("[BOT FLOW] Etapa: validar login/sessão no portal.")
@@ -129,17 +168,23 @@ class AfiliadoBot:
     def garantir_portal_pronto(self):
         self.abrir_portal()
 
-        if self.portal_pronto():
+        if self.esta_logado() and self.portal_pronto():
             return
 
-        self.preparar_login_manual()
-        raise LoginNecessarioError(
-            "Portal do afiliado exige login manual no perfil atual do Chrome."
-        )
+        logger.warning("[BOT FLOW] Aguardando login manual no navegador.")
+        if callable(self.atualizar_status):
+            self.atualizar_status(
+                "aguardando_login_manual",
+                "Aguardando login manual no navegador",
+            )
 
     def gerar_link(self, url_produto: str) -> str:
         etapa = "início"
         self.garantir_portal_pronto()
+
+        if not self.esta_logado():
+            logger.warning("[BOT FLOW] Login manual pendente antes da geração de link.")
+            raise LoginNecessarioError("LOGIN_MANUAL_NECESSARIO")
 
         try:
             etapa = "localizar campo"

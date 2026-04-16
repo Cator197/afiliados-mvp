@@ -97,9 +97,10 @@ def process_job(job_data: dict):
 
         logger.info("[JOB %s] Processamento finalizado com sucesso.", job_id)
 
-    except LoginNecessarioError:
+    except LoginNecessarioError as e:
+        erro_controlado = str(e) or "LOGIN_MANUAL_NECESSARIO"
         mensagem = (
-            "Login manual necessário no portal de afiliados do Mercado Livre. "
+            f"{erro_controlado}: Login manual necessário no portal de afiliados do Mercado Livre. "
             "Use o MESMO Chrome do Selenium já aberto no DISPLAY (ex.: Xvfb/VNC), faça login no perfil "
             "persistente oficial do robô e reenvie o job."
         )

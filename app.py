@@ -1,5 +1,7 @@
 import uuid
 import logging
+import os
+import sys
 from config import HOST, PORT, DEBUG
 from datetime import datetime
 from functools import wraps
@@ -30,14 +32,36 @@ from config import DATA_DIR, LOGS_DIR
 
 DATA_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
-logging.basicConfig(
-    filename="logs/app.log",
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
+
+LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+
+
+def configure_logging():
+    gunicorn_logger = logging.getLogger("gunicorn.error")
+    root_logger = logging.getLogger()
+
+    if gunicorn_logger.handlers:
+        root_logger.handlers = gunicorn_logger.handlers
+        root_logger.setLevel(gunicorn_logger.level or logging.INFO)
+        app.logger.handlers = gunicorn_logger.handlers
+        app.logger.setLevel(gunicorn_logger.level or logging.INFO)
+        return
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format=LOG_FORMAT,
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(os.path.join(LOGS_DIR, "app.log")),
+        ],
+    )
+    app.logger.setLevel(logging.INFO)
+
+
+configure_logging()
 
 def login_required_admin(f):
     @wraps(f)

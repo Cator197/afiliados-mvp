@@ -405,4 +405,6 @@ def api_bot_status():
     })
 
 if __name__ == "__main__":
-    app.run(host=HOST, port=PORT, debug=DEBUG)
+    host = HOST or "0.0.0.0"
+    app.logger.info(f"Iniciando servidor Flask em {host}:{PORT}")
+    app.run(host=host, port=PORT, debug=DEBUG)

@@ -39,3 +39,17 @@ BOT_STATUS_RECRIANDO = "recriando"
 BOT_STATUS_ONLINE = "online"
 BOT_STATUS_AGUARDANDO_LOGIN = "aguardando_login_manual"
 BOT_STATUS_ERRO_RECUPERACAO = "erro_recuperacao"
+
+
+# Selenium/Chrome runtime configuration (Ubuntu + Xvfb friendly)
+CHROME_HEADLESS = os.getenv("CHROME_HEADLESS", "false").lower() in {"1", "true", "yes"}
+CHROME_DISPLAY = os.getenv("CHROME_DISPLAY", "")
+CHROME_BINARY_PATH = os.getenv("CHROME_BINARY_PATH", "").strip()
+CHROMEDRIVER_PATH = os.getenv("CHROMEDRIVER_PATH", "").strip()
+CHROME_USE_WEBDRIVER_MANAGER_FALLBACK = os.getenv(
+    "CHROME_USE_WEBDRIVER_MANAGER_FALLBACK",
+    "false"
+).lower() in {"1", "true", "yes"}
+CHROME_PROFILE_DIR = Path(
+    os.getenv("CHROME_PROFILE_DIR", str(DATA_DIR / "chrome_profile"))
+).expanduser()

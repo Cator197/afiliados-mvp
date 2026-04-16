@@ -1,7 +1,7 @@
 import threading
 
 from services.browser_manager import criar_driver
-from services.afiliado_bot import AfiliadoBot
+from services.afiliado_bot import AfiliadoBot, LoginNecessarioError
 from config import (
     BOT_STATUS_OFFLINE,
     BOT_STATUS_RECRIANDO,
@@ -57,13 +57,12 @@ def criar_nova_instancia():
 
         try:
             _bot.garantir_portal_pronto()
-        except Exception:
+        except LoginNecessarioError:
             set_bot_status(
                 BOT_STATUS_AGUARDANDO_LOGIN,
-                "Chrome aberto, mas é necessário login manual no Mercado Livre."
+                "Chrome aberto com perfil persistente, mas login manual é necessário."
             )
-            _bot.aguardar_login_manual()
-            _bot.garantir_portal_pronto()
+            raise
 
         set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.")
         return _bot

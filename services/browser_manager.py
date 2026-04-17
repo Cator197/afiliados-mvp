@@ -20,6 +20,7 @@ from config import (
 
 LINK_BUILDER_URL = "https://www.mercadolivre.com.br/afiliados/linkbuilder#hub"
 logger = logging.getLogger(__name__)
+CHROME_WINDOW_SIZE = "1280,720"
 
 
 def _resolver_caminho_chrome() -> str | None:
@@ -67,11 +68,20 @@ def _montar_options(profile_dir: Path) -> Options:
 
     # Abre como "app", com menos interface e menos chance de fechar por engano
     options.add_argument(f"--app={LINK_BUILDER_URL}")
-    options.add_argument("--start-maximized")
+    options.add_argument(f"--window-size={CHROME_WINDOW_SIZE}")
 
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-infobars")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-sync")
+    options.add_argument("--disable-translate")
+    options.add_argument("--metrics-recording-only")
+    options.add_argument("--mute-audio")
+    options.add_argument("--disable-default-apps")
 
     # Não força headless por padrão; permite ativar por configuração
     if CHROME_HEADLESS:
@@ -89,6 +99,12 @@ def _montar_options(profile_dir: Path) -> Options:
     # Ajustes para ficar menos "cara de automação"
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
+    options.add_experimental_option(
+        "prefs",
+        {
+            "profile.managed_default_content_settings.images": 2,
+        },
+    )
 
     return options
 
@@ -130,18 +146,22 @@ def criar_driver():
         os.environ["DISPLAY"] = CHROME_DISPLAY
 
     logger.info(
-        "Inicializando Selenium: profile_dir=%s | headless=%s | display=%s | chrome_bin=%s | chromedriver=%s",
+        "Inicializando Selenium otimizado: profile_dir=%s | display=%s | chrome_bin=%s | chromedriver=%s | headless=%s | window_size=%s | flags_otimizadas=%s",
         profile_dir,
-        CHROME_HEADLESS,
         os.getenv("DISPLAY"),
         chrome_bin,
-        chromedriver_bin or "selenium-manager/fallback"
+        chromedriver_bin or "selenium-manager/fallback",
+        CHROME_HEADLESS,
+        CHROME_WINDOW_SIZE,
+        True,
     )
 
     options = _montar_options(profile_dir)
+    argumentos = options.arguments or []
     logger.info(
-        "Chrome binary_location configurado no Selenium: %s",
-        options.binary_location or "não configurado (Selenium Manager decide)"
+        "Chrome binary_location configurado no Selenium: %s | argumentos=%s",
+        options.binary_location or "não configurado (Selenium Manager decide)",
+        argumentos,
     )
     try:
         driver = _criar_driver_com_fallback(options)

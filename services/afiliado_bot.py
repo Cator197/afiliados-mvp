@@ -45,7 +45,7 @@ RESULTADO_LINK_SELECTORS = [
 
 
 class AfiliadoBot:
-    def __init__(self, driver, timeout=20, atualizar_status=None):
+    def __init__(self, driver, timeout=15, atualizar_status=None):
         self.driver = driver
         self.wait = WebDriverWait(driver, timeout)
         self.atualizar_status = atualizar_status

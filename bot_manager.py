@@ -118,11 +118,19 @@ def get_bot(job_id: str | None = None):
     global _bot, _driver
 
     with _bot_lock:
-        if not driver_esta_vivo(_driver) or _bot is None:
-            logger.warning("%sDriver indisponível. Recriando bot.", _job_tag(job_id))
+        driver_vivo = driver_esta_vivo(_driver)
+        bot_com_driver_valido = _bot is not None and getattr(_bot, "driver", None) is _driver
+
+        if not driver_vivo or not bot_com_driver_valido:
+            logger.warning(
+                "%sDriver indisponível/inválido (driver_vivo=%s, bot_com_driver_valido=%s). Recriando bot.",
+                _job_tag(job_id),
+                driver_vivo,
+                bot_com_driver_valido,
+            )
             return criar_nova_instancia(job_id=job_id)
 
-        logger.info("%sReusando instância atual do bot.", _job_tag(job_id))
+        logger.info("%sReusando instância atual do bot e sessão ativa do navegador.", _job_tag(job_id))
         return _bot
 
 

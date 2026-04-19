@@ -49,8 +49,26 @@ class AfiliadoBot:
         self.driver = driver
         self.wait = WebDriverWait(driver, timeout)
         self.atualizar_status = atualizar_status
+        self._aguardando_login_manual = False
+
+    def _navegacao_bloqueada_por_login_manual(self) -> bool:
+        if self._aguardando_login_manual:
+            logger.warning("[BOT] bloqueando navegação: aguardando login manual")
+            return True
+        return False
+
+    def _validacao_bloqueada_por_login_manual(self) -> bool:
+        if self._aguardando_login_manual:
+            logger.info("[BOT] validação ignorada: aguardando login manual")
+            return True
+        return False
+
+    def _set_aguardando_login_manual(self, aguardando: bool):
+        self._aguardando_login_manual = aguardando
 
     def abrir_portal(self):
+        if self._navegacao_bloqueada_por_login_manual():
+            return "login"
         logger.info("[BOT FLOW] Etapa: abrir página do portal.")
         self.driver.get(LINK_BUILDER_URL)
         self._aguardar_login_ou_portal()
@@ -97,12 +115,15 @@ class AfiliadoBot:
 
         resultado = self.wait.until(_portal_ou_login)
         if resultado == "login":
+            self._set_aguardando_login_manual(True)
             if callable(self.atualizar_status):
                 self.atualizar_status(
                     "aguardando_login_manual",
                     "Aguardando login manual no navegador",
                 )
             logger.warning("[BOT FLOW] Aguardando login manual no navegador.")
+        else:
+            self._set_aguardando_login_manual(False)
         return resultado
 
     def _wait_first_element(
@@ -142,23 +163,34 @@ class AfiliadoBot:
         self.abrir_portal()
 
     def esta_logado(self) -> bool:
+        if self._validacao_bloqueada_por_login_manual():
+            return False
+
         logger.info("[BOT FLOW] Etapa: verificar se sessão está autenticada.")
         self.driver.get(LINK_BUILDER_URL)
         self._aguardar_login_ou_portal()
-        return not self._esta_em_tela_login()
+        autenticado = not self._esta_em_tela_login()
+        if autenticado:
+            self._set_aguardando_login_manual(False)
+        return autenticado
 
     def portal_pronto(self) -> bool:
+        if self._validacao_bloqueada_por_login_manual():
+            return False
+
         try:
             logger.info("[BOT FLOW] Etapa: validar login/sessão no portal.")
             self.driver.get(LINK_BUILDER_URL)
             if self._esta_em_tela_login():
                 logger.warning("[BOT FLOW] Login necessário detectado ao validar sessão.")
+                self._set_aguardando_login_manual(True)
                 return False
 
             self._wait_first_element(
                 selectors=URL_INPUT_SELECTORS,
                 etapa="validar campo da URL no portal",
             )
+            self._set_aguardando_login_manual(False)
             logger.info("[BOT FLOW] Portal pronto e campo URL disponível.")
             return True
         except Exception:
@@ -166,12 +198,16 @@ class AfiliadoBot:
             return False
 
     def garantir_portal_pronto(self):
+        if self._validacao_bloqueada_por_login_manual():
+            return
+
         self.abrir_portal()
 
         if self.esta_logado() and self.portal_pronto():
             return
 
         logger.warning("[BOT FLOW] Aguardando login manual no navegador.")
+        self._set_aguardando_login_manual(True)
         if callable(self.atualizar_status):
             self.atualizar_status(
                 "aguardando_login_manual",

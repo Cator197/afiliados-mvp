@@ -55,3 +55,4 @@ CHROME_USE_WEBDRIVER_MANAGER_FALLBACK = os.getenv(
 CHROME_PROFILE_DIR = Path(
     os.getenv("CHROME_PROFILE_DIR", str(DATA_DIR / "chrome_profile"))
 ).expanduser()
+CHROME_DEBUGGER_ADDRESS = os.getenv("CHROME_DEBUGGER_ADDRESS", "").strip()

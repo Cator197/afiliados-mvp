@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
 from config import (
+    CHROME_DEBUGGER_ADDRESS,
     CHROME_BINARY_PATH,
     CHROME_DISPLAY,
     CHROME_HEADLESS,
@@ -110,6 +111,10 @@ def _montar_options(profile_dir: Path) -> Options:
 
 
 def _criar_driver_com_fallback(options: Options):
+    if CHROME_DEBUGGER_ADDRESS:
+        logger.info("[DRIVER] conectando em Chrome existente via debuggerAddress")
+        return webdriver.Chrome(options=options)
+
     chromedriver_bin = _resolver_caminho_chromedriver()
 
     # Caminho recomendado para servidor: usar chromedriver instalado no sistema.
@@ -157,12 +162,16 @@ def criar_driver():
     )
 
     options = _montar_options(profile_dir)
+    if CHROME_DEBUGGER_ADDRESS:
+        options.debugger_address = CHROME_DEBUGGER_ADDRESS
     argumentos = options.arguments or []
     logger.info(
         "Chrome binary_location configurado no Selenium: %s | argumentos=%s",
         options.binary_location or "não configurado (Selenium Manager decide)",
         argumentos,
     )
+    if not CHROME_DEBUGGER_ADDRESS:
+        logger.info("[DRIVER] usando modo padrão de criação de Chrome")
     try:
         driver = _criar_driver_com_fallback(options)
     except Exception:

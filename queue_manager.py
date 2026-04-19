@@ -1,6 +1,7 @@
 import queue
 import threading
 import logging
+import time
 from datetime import datetime
 
 from bot_manager import get_bot, reiniciar_bot
@@ -18,6 +19,7 @@ from services.afiliado_bot import LoginNecessarioError, FluxoGeracaoLinkError
 
 job_queue = queue.Queue()
 logger = logging.getLogger(__name__)
+LOGIN_MANUAL_CHECKPOINT_SLEEP_SECONDS = 5
 
 
 def now_str():
@@ -53,27 +55,33 @@ def process_job(job_data: dict):
 
         bot = get_bot(job_id=job_id)
 
-        try:
-            link_afiliado = bot.gerar_link(url_original)
-        except LoginNecessarioError:
-            raise
-        except FluxoGeracaoLinkError as primeira_falha:
-            if not primeira_falha.retryable:
-                raise
+        while True:
+            try:
+                link_afiliado = bot.gerar_link(url_original)
+                break
+            except LoginNecessarioError:
+                logger.warning("[BOT] aguardando login manual")
+                logger.info("[BOT] driver mantido vivo durante checkpoint humano")
+                time.sleep(LOGIN_MANUAL_CHECKPOINT_SLEEP_SECONDS)
+                continue
+            except FluxoGeracaoLinkError as primeira_falha:
+                if not primeira_falha.retryable:
+                    raise
 
-            logger.exception(
-                "[JOB %s] Falha retryable na primeira tentativa (%s). Reiniciando bot para uma segunda tentativa.",
-                job_id,
-                primeira_falha
-            )
-            bot = reiniciar_bot(job_id=job_id)
-            link_afiliado = bot.gerar_link(url_original)
-        except Exception:
-            logger.exception(
-                "[JOB %s] Falha não mapeada na geração do link; sem retry automático para não mascarar erro real.",
-                job_id
-            )
-            raise
+                logger.exception(
+                    "[JOB %s] Falha retryable na primeira tentativa (%s). Reiniciando bot para uma segunda tentativa.",
+                    job_id,
+                    primeira_falha
+                )
+                bot = reiniciar_bot(job_id=job_id)
+                link_afiliado = bot.gerar_link(url_original)
+                break
+            except Exception:
+                logger.exception(
+                    "[JOB %s] Falha não mapeada na geração do link; sem retry automático para não mascarar erro real.",
+                    job_id
+                )
+                raise
 
         _update_job_status_com_log(
             job_id=job_id,
@@ -97,21 +105,6 @@ def process_job(job_data: dict):
 
         logger.info("[JOB %s] Processamento finalizado com sucesso.", job_id)
 
-    except LoginNecessarioError as e:
-        erro_controlado = str(e) or "LOGIN_MANUAL_NECESSARIO"
-        mensagem = (
-            f"{erro_controlado}: Login manual necessário no portal de afiliados do Mercado Livre. "
-            "Use o MESMO Chrome do Selenium já aberto no DISPLAY (ex.: Xvfb/VNC), faça login no perfil "
-            "persistente oficial do robô e reenvie o job."
-        )
-        logger.exception("[JOB %s] Job bloqueado por login manual necessário.", job_id)
-
-        _update_job_status_com_log(
-            job_id=job_id,
-            status=JOB_STATUS_ERRO,
-            finalizado_em=now_str(),
-            mensagem_erro=mensagem
-        )
     except Exception as e:
         logger.exception("[JOB %s] Erro ao processar job.", job_id)
 

@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import shutil
 import logging
+import threading
 
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
@@ -9,7 +10,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
 from config import (
-    CHROME_DEBUGGER_ADDRESS,
     CHROME_BINARY_PATH,
     CHROME_DISPLAY,
     CHROME_HEADLESS,
@@ -22,6 +22,8 @@ from config import (
 LINK_BUILDER_URL = "https://www.mercadolivre.com.br/afiliados/linkbuilder#hub"
 logger = logging.getLogger(__name__)
 CHROME_WINDOW_SIZE = "1280,720"
+_PROFILE_LOCK = threading.Lock()
+_PROFILE_IN_USE = False
 
 
 def _resolver_caminho_chrome() -> str | None:
@@ -111,10 +113,6 @@ def _montar_options(profile_dir: Path) -> Options:
 
 
 def _criar_driver_com_fallback(options: Options):
-    if CHROME_DEBUGGER_ADDRESS:
-        logger.info("[DRIVER] conectando em Chrome existente via debuggerAddress")
-        return webdriver.Chrome(options=options)
-
     chromedriver_bin = _resolver_caminho_chromedriver()
 
     # Caminho recomendado para servidor: usar chromedriver instalado no sistema.
@@ -141,6 +139,7 @@ def _criar_driver_com_fallback(options: Options):
 
 
 def criar_driver():
+    global _PROFILE_IN_USE
     profile_dir = CHROME_PROFILE_DIR.resolve()
     profile_dir.mkdir(parents=True, exist_ok=True)
     chromedriver_bin = _resolver_caminho_chromedriver()
@@ -160,23 +159,42 @@ def criar_driver():
         CHROME_WINDOW_SIZE,
         True,
     )
+    logger.info("[DRIVER] usando profile fixo: %s", profile_dir)
 
     options = _montar_options(profile_dir)
-    if CHROME_DEBUGGER_ADDRESS:
-        options.debugger_address = CHROME_DEBUGGER_ADDRESS
     argumentos = options.arguments or []
     logger.info(
         "Chrome binary_location configurado no Selenium: %s | argumentos=%s",
         options.binary_location or "não configurado (Selenium Manager decide)",
         argumentos,
     )
-    if not CHROME_DEBUGGER_ADDRESS:
-        logger.info("[DRIVER] usando modo padrão de criação de Chrome")
+    logger.info("[DRIVER] usando modo padrão de criação de Chrome")
+
+    with _PROFILE_LOCK:
+        if _PROFILE_IN_USE:
+            raise RuntimeError(
+                f"Já existe uma instância do Selenium usando o profile fixo: {profile_dir}"
+            )
+        _PROFILE_IN_USE = True
     try:
         driver = _criar_driver_com_fallback(options)
     except Exception:
+        with _PROFILE_LOCK:
+            _PROFILE_IN_USE = False
         logger.exception("Falha ao subir o driver Chrome/Selenium.")
         raise
+
+    original_quit = driver.quit
+
+    def _quit_com_liberacao_profile():
+        global _PROFILE_IN_USE
+        try:
+            return original_quit()
+        finally:
+            with _PROFILE_LOCK:
+                _PROFILE_IN_USE = False
+
+    driver.quit = _quit_com_liberacao_profile
 
     driver.execute_script(
         "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"

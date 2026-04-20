@@ -12,7 +12,6 @@ from selenium.webdriver.chrome.service import Service
 from config import (
     CHROME_BINARY_PATH,
     CHROME_DISPLAY,
-    CHROME_HEADLESS,
     CHROME_PROFILE_DIR,
     CHROMEDRIVER_PATH,
     CHROME_USE_WEBDRIVER_MANAGER_FALLBACK,
@@ -75,20 +74,10 @@ def _montar_options(profile_dir: Path) -> Options:
 
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-infobars")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--disable-background-networking")
-    options.add_argument("--disable-sync")
-    options.add_argument("--disable-translate")
-    options.add_argument("--metrics-recording-only")
-    options.add_argument("--mute-audio")
-    options.add_argument("--disable-default-apps")
-
-    # Não força headless por padrão; permite ativar por configuração
-    if CHROME_HEADLESS:
-        options.add_argument("--headless=new")
+    options.add_argument("--start-maximized")
 
     # Perfil persistente: mantém cookies, login e sessão quando possível
     options.add_argument(f"--user-data-dir={profile_dir}")
@@ -155,7 +144,7 @@ def criar_driver():
         os.getenv("DISPLAY"),
         chrome_bin,
         chromedriver_bin or "selenium-manager/fallback",
-        CHROME_HEADLESS,
+        False,
         CHROME_WINDOW_SIZE,
         True,
     )
@@ -196,9 +185,18 @@ def criar_driver():
 
     driver.quit = _quit_com_liberacao_profile
 
-    driver.execute_script(
-        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+    logger.info("[DRIVER] modo stealth ativado")
+    driver.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": """
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            })
+            """,
+        },
     )
+    logger.info("[DRIVER] webdriver ocultado")
     logger.info("Driver Chrome/Selenium inicializado com sucesso.")
 
     return driver

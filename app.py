@@ -523,23 +523,6 @@ def solicitar_link():
     )
     app.logger.info("[JOB %s] Job persistido com status inicial '%s'.", job_id, JOB_STATUS_NA_FILA)
 
-    if plataforma == PLATFORM_SHOPEE:
-        mensagem_erro = "Suporte para Shopee ainda está em implantação."
-        update_job_status(
-            job_id=job_id,
-            status=JOB_STATUS_ERRO,
-            finalizado_em=now_str(),
-            mensagem_erro=mensagem_erro,
-        )
-        app.logger.warning("[JOB %s] %s", job_id, mensagem_erro)
-        return jsonify({
-            "ok": False,
-            "job_id": job_id,
-            "status": JOB_STATUS_ERRO,
-            "plataforma": plataforma,
-            "erro": mensagem_erro,
-        }), 422
-
     app.logger.info(
         "[JOB %s] Job aguardando claim do worker remoto em /api/worker/jobs/claim.",
         job_id,

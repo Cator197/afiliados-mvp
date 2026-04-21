@@ -107,7 +107,7 @@ class PlatformSupportTests(unittest.TestCase):
         self.assertEqual(row["plataforma"], PLATFORM_MERCADOLIVRE)
         self.assertEqual(row["status"], "na_fila")
 
-    def test_shopee_is_recognized_but_not_processed_as_ready(self):
+    def test_shopee_job_creation_enters_normal_queue_flow(self):
         self._login()
 
         response = self.client.post(
@@ -118,9 +118,9 @@ class PlatformSupportTests(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["ok"])
         self.assertEqual(payload["plataforma"], PLATFORM_SHOPEE)
 
         conn = get_connection()
@@ -133,8 +133,8 @@ class PlatformSupportTests(unittest.TestCase):
         conn.close()
 
         self.assertEqual(row["plataforma"], PLATFORM_SHOPEE)
-        self.assertEqual(row["status"], "erro")
-        self.assertIn("implantação", row["mensagem_erro"])
+        self.assertEqual(row["status"], "na_fila")
+        self.assertIsNone(row["mensagem_erro"])
 
     def test_legacy_data_remains_compatible_after_platform_migration(self):
         legacy_db = Path(self.tmpdir.name) / "legacy.db"

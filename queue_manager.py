@@ -15,6 +15,7 @@ from config import (
 from repositories.jobs_repo import update_job_status
 from repositories.links_repo import create_link_gerado
 from services.afiliado_bot import LoginNecessarioError, FluxoGeracaoLinkError
+from services.platform_utils import SUPPORTED_PLATFORMS
 
 
 job_queue = queue.Queue()
@@ -48,8 +49,8 @@ def process_job(job_data: dict):
     try:
         logger.info("[JOB %s] Iniciando processamento do job.", job_id)
 
-        if plataforma != "mercadolivre":
-            raise RuntimeError(f"Plataforma '{plataforma}' ainda não suportada no worker local.")
+        if plataforma not in SUPPORTED_PLATFORMS:
+            raise RuntimeError(f"Plataforma '{plataforma}' não suportada no worker local.")
 
         _update_job_status_com_log(
             job_id=job_id,
@@ -57,7 +58,7 @@ def process_job(job_data: dict):
             iniciado_em=now_str()
         )
 
-        bot = get_bot(job_id=job_id)
+        bot = get_bot(job_id=job_id, plataforma=plataforma)
 
         while True:
             try:
@@ -77,7 +78,7 @@ def process_job(job_data: dict):
                     job_id,
                     primeira_falha
                 )
-                bot = reiniciar_bot(job_id=job_id)
+                bot = reiniciar_bot(job_id=job_id, plataforma=plataforma)
                 link_afiliado = bot.gerar_link(url_original)
                 break
             except Exception:

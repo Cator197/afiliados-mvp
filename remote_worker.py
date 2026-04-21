@@ -16,6 +16,7 @@ from config import (
     WORKER_POLL_INTERVAL_SECONDS,
 )
 from services.afiliado_bot import LoginNecessarioError
+from services.platform_utils import PLATFORM_MERCADOLIVRE, PLATFORM_SHOPEE, SUPPORTED_PLATFORMS
 
 
 logger = logging.getLogger("remote_worker")
@@ -110,7 +111,7 @@ def send_error(job_id: str, mensagem_erro: str) -> None:
     response.raise_for_status()
 
 
-def wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at: float):
+def wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at: float, plataforma: str):
     logger.warning(
         "[WORKER] Aguardando login manual no MESMO navegador do Selenium. "
         "O worker ficará pausado até a sessão ser restabelecida."
@@ -126,7 +127,7 @@ def wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at: float):
         try:
             if bot.esta_logado(passive_check=True) and bot.portal_pronto(passive_check=True):
                 logger.info("[WORKER] Login manual detectado/restabelecido. Retomando processamento.")
-                set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.")
+                set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.", plataforma=plataforma)
                 return bot, last_heartbeat_sent_at
         except Exception:
             logger.exception("[WORKER] Falha ao revalidar sessão durante espera de login manual.")
@@ -134,17 +135,17 @@ def wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at: float):
         time.sleep(WORKER_POLL_INTERVAL_SECONDS)
 
 
-def ensure_bot_ready(bot, last_heartbeat_sent_at: float):
-    status = get_bot_status()
+def ensure_bot_ready(bot, last_heartbeat_sent_at: float, plataforma: str):
+    status = get_bot_status(plataforma=plataforma)
 
     if status.get("status") == BOT_STATUS_AGUARDANDO_LOGIN:
         if bot.esta_logado(passive_check=True) and bot.portal_pronto(passive_check=True):
-            set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.")
+            set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.", plataforma=plataforma)
             return bot, last_heartbeat_sent_at
-        return wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at)
+        return wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at, plataforma=plataforma)
 
     if not bot.esta_logado(force_check=True) or not bot.portal_pronto(force_check=True):
-        return wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at)
+        return wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at, plataforma=plataforma)
 
     return bot, last_heartbeat_sent_at
 
@@ -156,13 +157,13 @@ def process_one_job(bot, job: dict) -> None:
 
     if not url_original:
         raise RuntimeError("url_original ausente no job claimado")
-    if plataforma != "mercadolivre":
-        mensagem = f"Plataforma '{plataforma}' ainda não suportada pelo worker atual."
+    if plataforma not in SUPPORTED_PLATFORMS:
+        mensagem = f"Plataforma '{plataforma}' não suportada pelo worker."
         logger.warning("[JOB %s] %s", job_id, mensagem)
         send_error(job_id=job_id, mensagem_erro=mensagem)
         return
 
-    logger.info("[JOB %s] Processando job Mercado Livre com navegador persistente.", job_id)
+    logger.info("[JOB %s] Processando job da plataforma %s com navegador persistente.", job_id, plataforma)
 
     try:
         url_afiliado = bot.gerar_link(url_original)
@@ -180,15 +181,12 @@ def run() -> None:
     _validate_local_config()
 
     logger.info("[WORKER] Worker local iniciado. worker_id=%s vps=%s", WORKER_ID, VPS_BASE_URL)
-    bot = get_bot()
     last_heartbeat_sent_at = 0.0
-
-    bot, last_heartbeat_sent_at = ensure_bot_ready(bot, last_heartbeat_sent_at)
-    logger.info("[WORKER] Navegador iniciado/reutilizado e pronto para polling.")
+    logger.info("[WORKER] Polling iniciado.")
+    plataforma_em_execucao = PLATFORM_MERCADOLIVRE
 
     while True:
         try:
-            bot, last_heartbeat_sent_at = ensure_bot_ready(bot, last_heartbeat_sent_at)
             last_heartbeat_sent_at = maybe_send_heartbeat(
                 last_heartbeat_sent_at,
                 status="online",
@@ -202,9 +200,26 @@ def run() -> None:
                 continue
 
             logger.info("[JOB %s] Job claimado pelo worker=%s", job["id"], WORKER_ID)
+            plataforma = (job.get("plataforma") or PLATFORM_MERCADOLIVRE).strip().lower()
+            plataforma_em_execucao = plataforma
+            if plataforma not in SUPPORTED_PLATFORMS:
+                send_error(job_id=job["id"], mensagem_erro=f"Plataforma '{plataforma}' não suportada.")
+                continue
+
+            bot = get_bot(plataforma=plataforma, job_id=job["id"])
+            bot, last_heartbeat_sent_at = ensure_bot_ready(
+                bot,
+                last_heartbeat_sent_at,
+                plataforma=plataforma,
+            )
             process_one_job(bot, job)
         except LoginNecessarioError:
-            bot, last_heartbeat_sent_at = wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at)
+            bot = get_bot(plataforma=plataforma_em_execucao)
+            bot, last_heartbeat_sent_at = wait_for_manual_login_if_needed(
+                bot,
+                last_heartbeat_sent_at,
+                plataforma=plataforma_em_execucao,
+            )
             time.sleep(WORKER_POLL_INTERVAL_SECONDS)
         except requests.RequestException:
             logger.exception("[WORKER] Falha de comunicação com a VPS. Tentando novamente.")

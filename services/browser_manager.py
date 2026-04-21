@@ -16,19 +16,24 @@ from config import (
     CHROMEDRIVER_PATH,
     CHROME_USE_WEBDRIVER_MANAGER_FALLBACK,
 )
+from services.platform_utils import PLATFORM_MERCADOLIVRE, PLATFORM_SHOPEE
 
 
-LINK_BUILDER_URL = "https://www.mercadolivre.com.br/afiliados/linkbuilder#hub"
+PLATFORM_PORTAL_URLS = {
+    PLATFORM_MERCADOLIVRE: "https://www.mercadolivre.com.br/afiliados/linkbuilder#hub",
+    PLATFORM_SHOPEE: "https://affiliate.shopee.com.br/offer/custom_link",
+}
 logger = logging.getLogger(__name__)
 CHROME_WINDOW_SIZE = "1280,720"
 _PROFILE_LOCK = threading.Lock()
-_PROFILE_IN_USE = False
+_PROFILES_IN_USE = set()
 
 
-def liberar_profile_em_uso() -> None:
-    global _PROFILE_IN_USE
+def liberar_profile_em_uso(profile_dir: Path | None = None) -> None:
+    if profile_dir is None:
+        return
     with _PROFILE_LOCK:
-        _PROFILE_IN_USE = False
+        _PROFILES_IN_USE.discard(str(profile_dir.resolve()))
 
 
 def _resolver_caminho_chrome() -> str | None:
@@ -67,7 +72,15 @@ def _resolver_caminho_chromedriver() -> str | None:
     return None
 
 
-def _montar_options(profile_dir: Path) -> Options:
+def _resolver_portal_url(plataforma: str) -> str:
+    return PLATFORM_PORTAL_URLS.get(plataforma, PLATFORM_PORTAL_URLS[PLATFORM_MERCADOLIVRE])
+
+
+def _resolver_profile_dir(plataforma: str) -> Path:
+    return CHROME_PROFILE_DIR.resolve() / plataforma
+
+
+def _montar_options(profile_dir: Path, plataforma: str) -> Options:
     options = Options()
     chrome_bin = _resolver_caminho_chrome()
 
@@ -75,7 +88,7 @@ def _montar_options(profile_dir: Path) -> Options:
         options.binary_location = chrome_bin
 
     # Abre como "app", com menos interface e menos chance de fechar por engano
-    options.add_argument(f"--app={LINK_BUILDER_URL}")
+    options.add_argument(f"--app={_resolver_portal_url(plataforma)}")
     options.add_argument(f"--window-size={CHROME_WINDOW_SIZE}")
 
     options.add_argument("--no-sandbox")
@@ -133,9 +146,8 @@ def _criar_driver_com_fallback(options: Options):
     )
 
 
-def criar_driver():
-    global _PROFILE_IN_USE
-    profile_dir = CHROME_PROFILE_DIR.resolve()
+def criar_driver(plataforma: str = PLATFORM_MERCADOLIVRE):
+    profile_dir = _resolver_profile_dir(plataforma)
     profile_dir.mkdir(parents=True, exist_ok=True)
     chromedriver_bin = _resolver_caminho_chromedriver()
     chrome_bin = _resolver_caminho_chrome()
@@ -156,7 +168,7 @@ def criar_driver():
     )
     logger.info("[DRIVER] usando profile fixo: %s", profile_dir)
 
-    options = _montar_options(profile_dir)
+    options = _montar_options(profile_dir, plataforma=plataforma)
     argumentos = options.arguments or []
     logger.info(
         "Chrome binary_location configurado no Selenium: %s | argumentos=%s",
@@ -166,28 +178,28 @@ def criar_driver():
     logger.info("[DRIVER] usando modo padrão de criação de Chrome")
 
     with _PROFILE_LOCK:
-        if _PROFILE_IN_USE:
+        profile_key = str(profile_dir.resolve())
+        if profile_key in _PROFILES_IN_USE:
             raise RuntimeError(
                 f"Já existe uma instância do Selenium usando o profile fixo: {profile_dir}"
             )
-        _PROFILE_IN_USE = True
+        _PROFILES_IN_USE.add(profile_key)
     try:
         driver = _criar_driver_com_fallback(options)
     except Exception:
         with _PROFILE_LOCK:
-            _PROFILE_IN_USE = False
+            _PROFILES_IN_USE.discard(str(profile_dir.resolve()))
         logger.exception("Falha ao subir o driver Chrome/Selenium.")
         raise
 
     original_quit = driver.quit
 
     def _quit_com_liberacao_profile():
-        global _PROFILE_IN_USE
         try:
             return original_quit()
         finally:
             with _PROFILE_LOCK:
-                _PROFILE_IN_USE = False
+                _PROFILES_IN_USE.discard(str(profile_dir.resolve()))
 
     driver.quit = _quit_com_liberacao_profile
 

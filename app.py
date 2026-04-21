@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from config import HOST, PORT, DEBUG
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import (
@@ -22,9 +22,11 @@ from config import (
     CASHBACK_PERCENTUAL_PADRAO,
     WORKER_API_TOKEN,
     WORKER_ENABLED,
+    JOB_TIMEOUT_SECONDS,
+    WORKER_INACTIVE_THRESHOLD_SECONDS,
 )
 from repositories.usuarios_repo import get_user_by_codigo
-from repositories.jobs_repo import create_job, get_job_by_id, claim_next_job, update_job_status, list_jobs
+from repositories.jobs_repo import create_job, get_job_by_id, claim_next_job, update_job_status, list_jobs, reclaim_stuck_jobs, get_jobs_status_counts
 from repositories.links_repo import (
     get_links_by_usuario_id,
     get_all_links,
@@ -33,7 +35,8 @@ from repositories.links_repo import (
     create_link_gerado,
 )
 from repositories.admin_repo import validate_admin_login
-from init_db import ensure_jobs_worker_columns
+from repositories.worker_status_repo import upsert_worker_heartbeat, get_worker_status
+from init_db import ensure_jobs_worker_columns, ensure_worker_heartbeats_table
 
 from config import DATA_DIR, LOGS_DIR
 
@@ -70,6 +73,7 @@ def configure_logging():
 
 configure_logging()
 ensure_jobs_worker_columns()
+ensure_worker_heartbeats_table()
 
 def login_required_admin(f):
     @wraps(f)
@@ -81,6 +85,21 @@ def login_required_admin(f):
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_datetime(dt_str: str | None):
+    if not dt_str:
+        return None
+
+    try:
+        return datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def get_request_worker_id(payload: dict | None = None) -> str:
+    payload = payload or {}
+    return payload.get("worker_id", "").strip() or request.headers.get("X-Worker-Id", "").strip()
 
 
 def is_valid_mercadolivre_url(url: str) -> bool:
@@ -363,6 +382,17 @@ def worker_claim_job():
     if not worker_id:
         return jsonify({"ok": False, "erro": "worker_id não informado."}), 400
 
+    reclaimed = reclaim_stuck_jobs(
+        claimed_em_cutoff=(datetime.now() - timedelta(seconds=JOB_TIMEOUT_SECONDS)).strftime("%Y-%m-%d %H:%M:%S")
+    )
+    if reclaimed > 0:
+        app.logger.warning(
+            "[WORKER %s] Reclaim executado. %s job(s) preso(s) retornaram para '%s'.",
+            worker_id,
+            reclaimed,
+            JOB_STATUS_NA_FILA,
+        )
+
     job = claim_next_job(worker_id=worker_id, claimed_em=now_str())
 
     if not job:
@@ -389,6 +419,38 @@ def worker_claim_job():
     })
 
 
+@app.route("/api/worker/heartbeat", methods=["POST"])
+def worker_heartbeat():
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json(silent=True) or {}
+    worker_id = get_request_worker_id(data)
+
+    if not worker_id:
+        return jsonify({"ok": False, "erro": "worker_id não informado."}), 400
+
+    last_status = data.get("status", "").strip() or None
+    last_message = data.get("message", "").strip() or None
+    heartbeat_em = now_str()
+
+    upsert_worker_heartbeat(
+        worker_id=worker_id,
+        last_heartbeat_em=heartbeat_em,
+        last_status=last_status,
+        last_message=last_message,
+    )
+    app.logger.info(
+        "[WORKER %s] Heartbeat recebido | status=%s | message=%s",
+        worker_id,
+        last_status or "-",
+        last_message or "-",
+    )
+
+    return jsonify({"ok": True, "worker_id": worker_id, "last_heartbeat_em": heartbeat_em})
+
+
 @app.route("/api/worker/jobs/<job_id>/success", methods=["POST"])
 def worker_job_success(job_id):
     auth_error = validate_worker_request()
@@ -396,6 +458,7 @@ def worker_job_success(job_id):
         return auth_error
 
     data = request.get_json(silent=True) or {}
+    worker_id = get_request_worker_id(data)
     url_afiliado = data.get("url_afiliado", "").strip()
 
     if not url_afiliado:
@@ -404,6 +467,24 @@ def worker_job_success(job_id):
     job = get_job_by_id(job_id)
     if not job:
         return jsonify({"ok": False, "erro": "Job não encontrado."}), 404
+
+    if job["status"] != JOB_STATUS_PROCESSANDO:
+        app.logger.warning(
+            "[JOB %s] Success fora de contexto. status_atual=%s worker_reportado=%s",
+            job_id,
+            job["status"],
+            worker_id or "-",
+        )
+        return jsonify({"ok": False, "erro": "Job fora de contexto para success."}), 409
+
+    if worker_id and job["assigned_worker_id"] and worker_id != job["assigned_worker_id"]:
+        app.logger.warning(
+            "[JOB %s] Success com worker divergente. assigned=%s recebido=%s",
+            job_id,
+            job["assigned_worker_id"],
+            worker_id,
+        )
+        return jsonify({"ok": False, "erro": "worker_id divergente do job claimado."}), 409
 
     update_job_status(
         job_id=job_id,
@@ -436,6 +517,7 @@ def worker_job_error(job_id):
         return auth_error
 
     data = request.get_json(silent=True) or {}
+    worker_id = get_request_worker_id(data)
     mensagem_erro = data.get("mensagem_erro", "").strip()
 
     if not mensagem_erro:
@@ -444,6 +526,24 @@ def worker_job_error(job_id):
     job = get_job_by_id(job_id)
     if not job:
         return jsonify({"ok": False, "erro": "Job não encontrado."}), 404
+
+    if job["status"] != JOB_STATUS_PROCESSANDO:
+        app.logger.warning(
+            "[JOB %s] Error fora de contexto. status_atual=%s worker_reportado=%s",
+            job_id,
+            job["status"],
+            worker_id or "-",
+        )
+        return jsonify({"ok": False, "erro": "Job fora de contexto para error."}), 409
+
+    if worker_id and job["assigned_worker_id"] and worker_id != job["assigned_worker_id"]:
+        app.logger.warning(
+            "[JOB %s] Error com worker divergente. assigned=%s recebido=%s",
+            job_id,
+            job["assigned_worker_id"],
+            worker_id,
+        )
+        return jsonify({"ok": False, "erro": "worker_id divergente do job claimado."}), 409
 
     update_job_status(
         job_id=job_id,
@@ -518,6 +618,57 @@ def listar_links_usuario(codigo_usuario):
             for link in links
         ]
     })
+
+@app.route("/api/admin/worker-status", methods=["GET"])
+def api_worker_status():
+    if not admin_logado():
+        return jsonify({
+            "ok": False,
+            "erro": "Não autorizado."
+        }), 401
+
+    worker_id_filter = request.args.get("worker_id", "").strip() or None
+    worker = get_worker_status(worker_id_filter)
+    status_counts = get_jobs_status_counts()
+
+    jobs_na_fila = status_counts.get(JOB_STATUS_NA_FILA, 0)
+    jobs_processando = status_counts.get(JOB_STATUS_PROCESSANDO, 0)
+    jobs_erro = status_counts.get(JOB_STATUS_ERRO, 0)
+
+    inactive = None
+    inactive_for_seconds = None
+
+    if worker:
+        last_heartbeat_dt = parse_datetime(worker["last_heartbeat_em"])
+        if last_heartbeat_dt:
+            inactive_for_seconds = int((datetime.now() - last_heartbeat_dt).total_seconds())
+            inactive = inactive_for_seconds > WORKER_INACTIVE_THRESHOLD_SECONDS
+            if inactive:
+                app.logger.warning(
+                    "[WORKER %s] Considerado inativo. Último heartbeat há %ss (limite=%ss).",
+                    worker["worker_id"],
+                    inactive_for_seconds,
+                    WORKER_INACTIVE_THRESHOLD_SECONDS,
+                )
+
+    return jsonify({
+        "ok": True,
+        "worker": {
+            "worker_id": worker["worker_id"] if worker else None,
+            "last_heartbeat_em": worker["last_heartbeat_em"] if worker else None,
+            "last_status": worker["last_status"] if worker else None,
+            "last_message": worker["last_message"] if worker else None,
+            "inactive": inactive,
+            "inactive_for_seconds": inactive_for_seconds,
+            "inactive_threshold_seconds": WORKER_INACTIVE_THRESHOLD_SECONDS,
+        },
+        "jobs": {
+            "na_fila": jobs_na_fila,
+            "processando": jobs_processando,
+            "erro": jobs_erro,
+        }
+    })
+
 
 @app.route("/api/admin/bot-status", methods=["GET"])
 def api_bot_status():

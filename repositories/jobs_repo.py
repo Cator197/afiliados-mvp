@@ -44,6 +44,31 @@ def update_job_status(job_id, status, iniciado_em=None, finalizado_em=None,
     conn.close()
 
 
+def reclaim_stuck_jobs(claimed_em_cutoff, target_status='na_fila'):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE jobs
+        SET status = ?,
+            assigned_worker_id = NULL,
+            claimed_em = NULL,
+            iniciado_em = NULL
+        WHERE status = 'processando'
+          AND claimed_em IS NOT NULL
+          AND claimed_em <= ?
+        """,
+        (target_status, claimed_em_cutoff),
+    )
+    reclaimed_count = cursor.rowcount
+
+    conn.commit()
+    conn.close()
+
+    return reclaimed_count
+
+
 def claim_next_job(worker_id, claimed_em):
     conn = get_connection()
     cursor = conn.cursor()
@@ -73,7 +98,7 @@ def claim_next_job(worker_id, claimed_em):
             SET status = 'processando',
                 assigned_worker_id = ?,
                 claimed_em = ?,
-                iniciado_em = COALESCE(iniciado_em, ?)
+                iniciado_em = ?
             WHERE id = ?
             """,
             (worker_id, claimed_em, claimed_em, job_id),
@@ -122,3 +147,20 @@ def list_jobs():
 
     conn.close()
     return rows
+
+
+def get_jobs_status_counts():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT status, COUNT(*) AS total
+        FROM jobs
+        GROUP BY status
+        """
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    return {row["status"]: row["total"] for row in rows}

@@ -60,6 +60,7 @@
                         {% for solicitacao in solicitacoes %}
                             <tr>
                                 <form method="POST" action="{{ url_for('admin_atualizar_solicitacao', solicitacao_id=solicitacao.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <td>{{ solicitacao.id }}</td>
                                     <td>{{ solicitacao.criado_em }}</td>
                                     <td>{{ solicitacao.nome_completo }}</td>

@@ -1,3 +1,4 @@
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -75,10 +76,21 @@ class AdminUsuariosTests(unittest.TestCase):
         conn.commit()
         conn.close()
 
+
+    def _extract_csrf_token(self, html):
+        match = re.search(r'name="csrf_token" value="([^"]+)"', html)
+        self.assertIsNotNone(match)
+        return match.group(1)
+
+    def _get_admin_csrf_token(self):
+        response = self.client.get("/admin/login")
+        return self._extract_csrf_token(response.get_data(as_text=True))
+
     def _login_admin(self):
+        csrf_token = self._get_admin_csrf_token()
         return self.client.post(
             "/admin/login",
-            data={"username": "admin_teste", "password": "senha_teste"},
+            data={"username": "admin_teste", "password": "senha_teste", "csrf_token": csrf_token},
             follow_redirects=False,
         )
 
@@ -98,7 +110,7 @@ class AdminUsuariosTests(unittest.TestCase):
         user = self._get_user("USR001")
         atualiza = self.client.post(
             f"/admin/usuarios/{user['id']}/atualizar",
-            data={"acao": "toggle_ativo"},
+            data={"acao": "toggle_ativo", "csrf_token": self._get_admin_csrf_token()},
             follow_redirects=False,
         )
         self.assertEqual(atualiza.status_code, 302)
@@ -121,7 +133,7 @@ class AdminUsuariosTests(unittest.TestCase):
 
         self.client.post(
             f"/admin/usuarios/{user['id']}/atualizar",
-            data={"acao": "toggle_ativo"},
+            data={"acao": "toggle_ativo", "csrf_token": self._get_admin_csrf_token()},
             follow_redirects=False,
         )
 
@@ -130,7 +142,7 @@ class AdminUsuariosTests(unittest.TestCase):
 
         self.client.post(
             f"/admin/usuarios/{user['id']}/atualizar",
-            data={"acao": "toggle_ativo"},
+            data={"acao": "toggle_ativo", "csrf_token": self._get_admin_csrf_token()},
             follow_redirects=False,
         )
 
@@ -143,13 +155,26 @@ class AdminUsuariosTests(unittest.TestCase):
 
         self.client.post(
             f"/admin/usuarios/{user['id']}/atualizar",
-            data={"acao": "reset_senha", "nova_senha": "nova-senha-123"},
+            data={"acao": "reset_senha", "nova_senha": "nova-senha-123", "csrf_token": self._get_admin_csrf_token()},
             follow_redirects=False,
         )
 
         atualizado = self._get_user("USR001")
         self.assertNotEqual(atualizado["password_hash"], user["password_hash"])
         self.assertTrue(check_password_hash(atualizado["password_hash"], "nova-senha-123"))
+
+    def test_post_admin_sem_csrf_falha(self):
+        self._login_admin()
+        user = self._get_user("USR001")
+
+        response = self.client.post(
+            f"/admin/usuarios/{user['id']}/atualizar",
+            data={"acao": "toggle_ativo"},
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin/login?erro=csrf", response.headers.get("Location", ""))
 
 
 if __name__ == "__main__":

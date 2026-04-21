@@ -1,3 +1,4 @@
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,6 +55,15 @@ class PublicSignupTests(unittest.TestCase):
     def setUp(self):
         self.client = self.app.test_client()
 
+    def _extract_csrf_token(self, html):
+        match = re.search(r'name="csrf_token" value="([^"]+)"', html)
+        self.assertIsNotNone(match)
+        return match.group(1)
+
+    def _get_admin_csrf_token(self):
+        response = self.client.get("/admin/login")
+        return self._extract_csrf_token(response.get_data(as_text=True))
+
     def test_get_signup_page(self):
         response = self.client.get("/solicitar-cadastro")
         self.assertEqual(response.status_code, 200)
@@ -103,14 +113,15 @@ class PublicSignupTests(unittest.TestCase):
     def test_authenticated_route_unchanged(self):
         response = self.client.post(
             "/api/solicitar-link",
-            json={"codigo_usuario": "CAIO001", "url": "https://www.mercadolivre.com.br"},
+            json={"url": "https://www.mercadolivre.com.br"},
         )
         self.assertEqual(response.status_code, 401)
 
     def _login_admin(self):
+        csrf_token = self._get_admin_csrf_token()
         return self.client.post(
             "/admin/login",
-            data={"username": "admin_teste", "password": "senha_teste"},
+            data={"username": "admin_teste", "password": "senha_teste", "csrf_token": csrf_token},
             follow_redirects=False,
         )
 
@@ -163,7 +174,7 @@ class PublicSignupTests(unittest.TestCase):
 
         response = self.client.post(
             f"/admin/solicitacoes/{solicitacao_id}/atualizar",
-            data={"status": "em_analise", "observacoes_admin": "em revisão"},
+            data={"status": "em_analise", "observacoes_admin": "em revisão", "csrf_token": self._get_admin_csrf_token()},
             follow_redirects=False,
         )
         self.assertEqual(response.status_code, 302)
@@ -179,7 +190,7 @@ class PublicSignupTests(unittest.TestCase):
 
         self.client.post(
             f"/admin/solicitacoes/{solicitacao_id}/atualizar",
-            data={"status": "novo", "observacoes_admin": "documento pendente"},
+            data={"status": "novo", "observacoes_admin": "documento pendente", "csrf_token": self._get_admin_csrf_token()},
             follow_redirects=False,
         )
 
@@ -208,6 +219,7 @@ class PublicSignupTests(unittest.TestCase):
                 "codigo_usuario": "NOVO001",
                 "nome": "Usuário Novo",
                 "senha": "senha-segura",
+                "csrf_token": self._get_admin_csrf_token(),
             },
         )
         self.assertEqual(response.status_code, 200)
@@ -243,6 +255,7 @@ class PublicSignupTests(unittest.TestCase):
                 "codigo_usuario": "DUP001",
                 "nome": "Outro Nome",
                 "senha": "senha-segura",
+                "csrf_token": self._get_admin_csrf_token(),
             },
         )
         self.assertEqual(response.status_code, 400)
@@ -257,6 +270,7 @@ class PublicSignupTests(unittest.TestCase):
                 "codigo_usuario": "HASH001",
                 "nome": "Usuário Hash",
                 "senha": "senha123",
+                "csrf_token": self._get_admin_csrf_token(),
             },
         )
 
@@ -282,6 +296,7 @@ class PublicSignupTests(unittest.TestCase):
                 "senha": "senha123",
                 "solicitacao_id": str(solicitacao_id),
                 "aprovar_solicitacao": "on",
+                "csrf_token": self._get_admin_csrf_token(),
             },
         )
         self.assertEqual(response.status_code, 200)

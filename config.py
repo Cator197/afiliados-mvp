@@ -44,6 +44,9 @@ BOT_STATUS_ERRO_RECUPERACAO = "erro_recuperacao"
 
 WORKER_API_TOKEN = os.getenv("WORKER_API_TOKEN", "")
 WORKER_ENABLED = os.getenv("WORKER_ENABLED", "true").lower() in {"1", "true", "yes"}
+WORKER_ID = os.getenv("WORKER_ID", "local-worker").strip()
+WORKER_POLL_INTERVAL_SECONDS = int(os.getenv("WORKER_POLL_INTERVAL_SECONDS", "5"))
+VPS_BASE_URL = os.getenv("VPS_BASE_URL", "").strip().rstrip("/")
 
 
 # Selenium/Chrome runtime configuration (Ubuntu + Xvfb friendly)
@@ -55,4 +58,6 @@ CHROME_USE_WEBDRIVER_MANAGER_FALLBACK = os.getenv(
     "CHROME_USE_WEBDRIVER_MANAGER_FALLBACK",
     "false"
 ).lower() in {"1", "true", "yes"}
-CHROME_PROFILE_DIR = Path("/home/ubuntu/afiliados-mvp/data/chrome_profile").expanduser()
+CHROME_PROFILE_DIR = Path(
+    os.getenv("CHROME_PROFILE_DIR", str(DATA_DIR / "chrome_profile"))
+).expanduser()

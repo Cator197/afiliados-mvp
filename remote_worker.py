@@ -152,11 +152,17 @@ def ensure_bot_ready(bot, last_heartbeat_sent_at: float):
 def process_one_job(bot, job: dict) -> None:
     job_id = job["id"]
     url_original = (job.get("url_original") or "").strip()
+    plataforma = (job.get("plataforma") or "mercadolivre").strip().lower()
 
     if not url_original:
         raise RuntimeError("url_original ausente no job claimado")
+    if plataforma != "mercadolivre":
+        mensagem = f"Plataforma '{plataforma}' ainda não suportada pelo worker atual."
+        logger.warning("[JOB %s] %s", job_id, mensagem)
+        send_error(job_id=job_id, mensagem_erro=mensagem)
+        return
 
-    logger.info("[JOB %s] Processando job com navegador persistente.", job_id)
+    logger.info("[JOB %s] Processando job Mercado Livre com navegador persistente.", job_id)
 
     try:
         url_afiliado = bot.gerar_link(url_original)

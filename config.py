@@ -36,9 +36,14 @@ LINK_STATUS_COMPRA_CONFIRMADA = "compra_confirmada"
 LINK_STATUS_COMPRA_NAO_CONFIRMADA = "compra_nao_confirmada"
 LINK_STATUS_CASHBACK_PAGO = "cashback_pago"
 
-DOMINIOS_PERMITIDOS = [
+DOMINIOS_MERCADOLIVRE = [
     "mercadolivre.com",
     "mercadolivre.com.br"
+]
+
+DOMINIOS_SHOPEE = [
+    "shopee.com",
+    "shopee.com.br",
 ]
 
 BOT_STATUS_OFFLINE = "offline"

@@ -4,7 +4,6 @@ import os
 import sys
 from config import HOST, PORT, DEBUG
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
 from functools import wraps
 import re
 
@@ -16,7 +15,6 @@ from flask import (
 from config import (
     SECRET_KEY,
     SESSION_COOKIE_SECURE,
-    DOMINIOS_PERMITIDOS,
     JOB_STATUS_NA_FILA,
     JOB_STATUS_PROCESSANDO,
     JOB_STATUS_CONCLUIDO,
@@ -47,6 +45,12 @@ from repositories.cadastro_solicitacoes_repo import (
     update_cadastro_solicitacao_status,
 )
 from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table
+from init_db import ensure_jobs_platform_column, ensure_links_platform_column
+from services.platform_utils import (
+    PLATFORM_MERCADOLIVRE,
+    PLATFORM_SHOPEE,
+    detect_platform_from_url,
+)
 
 from config import DATA_DIR, LOGS_DIR
 
@@ -87,6 +91,8 @@ def configure_logging():
 configure_logging()
 ensure_usuarios_password_column()
 ensure_jobs_worker_columns()
+ensure_jobs_platform_column()
+ensure_links_platform_column()
 ensure_worker_heartbeats_table()
 ensure_cadastro_solicitacoes_table()
 
@@ -150,24 +156,6 @@ def is_valid_email(email: str) -> bool:
     if not email:
         return False
     return bool(re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email))
-
-def is_valid_mercadolivre_url(url: str) -> bool:
-    parsed = urlparse(url)
-
-    if parsed.scheme.lower() not in {"http", "https"}:
-        return False
-
-    hostname = (parsed.hostname or "").strip().lower().rstrip(".")
-    if not hostname:
-        return False
-
-    for dominio in DOMINIOS_PERMITIDOS:
-        domain = dominio.lower()
-        if hostname == domain or hostname.endswith(f".{domain}"):
-            return True
-
-    return False
-
 
 def admin_logado():
     return bool(session.get("admin_logged_in"))
@@ -497,10 +485,11 @@ def solicitar_link():
             "erro": "URL não informada."
         }), 400
 
-    if not is_valid_mercadolivre_url(url):
+    plataforma = detect_platform_from_url(url)
+    if not plataforma:
         return jsonify({
             "ok": False,
-            "erro": "A URL informada não é do Mercado Livre."
+            "erro": "A URL informada não pertence a uma plataforma suportada."
         }), 400
 
     if session.get("codigo_usuario") != codigo_usuario:
@@ -528,10 +517,29 @@ def solicitar_link():
         job_id=job_id,
         usuario_id=usuario["id"],
         url_original=url,
+        plataforma=plataforma,
         status=JOB_STATUS_NA_FILA,
         criado_em=now_str()
     )
     app.logger.info("[JOB %s] Job persistido com status inicial '%s'.", job_id, JOB_STATUS_NA_FILA)
+
+    if plataforma == PLATFORM_SHOPEE:
+        mensagem_erro = "Suporte para Shopee ainda está em implantação."
+        update_job_status(
+            job_id=job_id,
+            status=JOB_STATUS_ERRO,
+            finalizado_em=now_str(),
+            mensagem_erro=mensagem_erro,
+        )
+        app.logger.warning("[JOB %s] %s", job_id, mensagem_erro)
+        return jsonify({
+            "ok": False,
+            "job_id": job_id,
+            "status": JOB_STATUS_ERRO,
+            "plataforma": plataforma,
+            "erro": mensagem_erro,
+        }), 422
+
     app.logger.info(
         "[JOB %s] Job aguardando claim do worker remoto em /api/worker/jobs/claim.",
         job_id,
@@ -540,7 +548,8 @@ def solicitar_link():
     return jsonify({
         "ok": True,
         "job_id": job_id,
-        "status": JOB_STATUS_NA_FILA
+        "status": JOB_STATUS_NA_FILA,
+        "plataforma": plataforma,
     })
 
 
@@ -585,6 +594,7 @@ def worker_claim_job():
             "id": job["id"],
             "usuario_id": job["usuario_id"],
             "url_original": job["url_original"],
+            "plataforma": job["plataforma"],
             "status": job["status"],
             "assigned_worker_id": job["assigned_worker_id"],
             "claimed_em": job["claimed_em"],
@@ -673,6 +683,7 @@ def worker_job_success(job_id):
         usuario_id=job["usuario_id"],
         job_id=job_id,
         url_original=job["url_original"],
+        plataforma=job["plataforma"] or PLATFORM_MERCADOLIVRE,
         url_afiliado=url_afiliado,
         status=LINK_STATUS_AGUARDANDO_VERIFICACAO,
         percentual_cashback=CASHBACK_PERCENTUAL_PADRAO,
@@ -753,6 +764,7 @@ def consultar_job(job_id):
             "id": job["id"],
             "usuario_id": job["usuario_id"],
             "url_original": job["url_original"],
+            "plataforma": job["plataforma"],
             "status": job["status"],
             "resultado_link": job["resultado_link"],
             "mensagem_erro": job["mensagem_erro"],
@@ -825,6 +837,7 @@ def listar_links_usuario(codigo_usuario):
                 "job_id": link["job_id"],
                 "url_original": link["url_original"],
                 "url_afiliado": link["url_afiliado"],
+                "plataforma": link["plataforma"],
                 "status": link["status"],
                 "percentual_cashback": link["percentual_cashback"],
                 "valor_comissao": link["valor_comissao"],

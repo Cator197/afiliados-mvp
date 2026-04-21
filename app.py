@@ -53,6 +53,7 @@ from repositories.cadastro_solicitacoes_repo import (
     get_cadastro_solicitacao_by_id,
     list_cadastro_solicitacoes,
     update_cadastro_solicitacao_status,
+    get_cadastro_solicitacao_ativa_by_email,
 )
 from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table
 from init_db import ensure_jobs_platform_column, ensure_links_platform_column
@@ -231,6 +232,18 @@ def admin_logado():
 CADASTRO_SOLICITACAO_STATUS_VALIDOS = {"novo", "em_analise", "aprovado", "rejeitado"}
 MIN_USER_PASSWORD_LENGTH = 6
 ADMIN_USER_ACTIONS = {"toggle_ativo", "reset_senha"}
+
+CADASTRO_MIN_INTERVAL_SECONDS = 60
+_last_signup_attempt_by_email = {}
+
+
+def is_signup_rate_limited(email: str, now: datetime) -> bool:
+    last_attempt = _last_signup_attempt_by_email.get(email)
+    if last_attempt and (now - last_attempt).total_seconds() < CADASTRO_MIN_INTERVAL_SECONDS:
+        return True
+
+    _last_signup_attempt_by_email[email] = now
+    return False
 
 
 @app.route("/", methods=["GET"])
@@ -673,6 +686,13 @@ def solicitar_cadastro_publico():
 
     if not is_valid_email(email):
         return jsonify({"ok": False, "erro": "Email inválido."}), 400
+
+    solicitacao_existente = get_cadastro_solicitacao_ativa_by_email(email)
+    if solicitacao_existente:
+        return jsonify({"ok": False, "erro": "Já existe solicitação em análise"}), 409
+
+    if is_signup_rate_limited(email=email, now=datetime.now()):
+        return jsonify({"ok": False, "erro": "Tente novamente mais tarde"}), 429
 
     try:
         solicitacao_id = create_cadastro_solicitacao(

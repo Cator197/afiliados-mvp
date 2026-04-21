@@ -73,6 +73,16 @@ def create_tables():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS worker_heartbeats (
+        worker_id TEXT PRIMARY KEY,
+        last_heartbeat_em TEXT NOT NULL,
+        last_status TEXT,
+        last_message TEXT,
+        updated_em TEXT NOT NULL
+    )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -91,6 +101,24 @@ def ensure_jobs_worker_columns():
 
     if "claimed_em" not in existing_columns:
         cursor.execute("ALTER TABLE jobs ADD COLUMN claimed_em TEXT")
+
+    conn.commit()
+    conn.close()
+
+
+def ensure_worker_heartbeats_table():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS worker_heartbeats (
+        worker_id TEXT PRIMARY KEY,
+        last_heartbeat_em TEXT NOT NULL,
+        last_status TEXT,
+        last_message TEXT,
+        updated_em TEXT NOT NULL
+    )
+    """)
 
     conn.commit()
     conn.close()
@@ -160,6 +188,7 @@ if __name__ == "__main__":
     ensure_directories()
     create_tables()
     ensure_jobs_worker_columns()
+    ensure_worker_heartbeats_table()
     create_default_admin()
     create_sample_users()
     print("[OK] Banco inicializado com sucesso.")

@@ -46,6 +46,9 @@ WORKER_API_TOKEN = os.getenv("WORKER_API_TOKEN", "")
 WORKER_ENABLED = os.getenv("WORKER_ENABLED", "true").lower() in {"1", "true", "yes"}
 WORKER_ID = os.getenv("WORKER_ID", "local-worker").strip()
 WORKER_POLL_INTERVAL_SECONDS = int(os.getenv("WORKER_POLL_INTERVAL_SECONDS", "5"))
+WORKER_HEARTBEAT_INTERVAL_SECONDS = int(os.getenv("WORKER_HEARTBEAT_INTERVAL_SECONDS", "15"))
+WORKER_INACTIVE_THRESHOLD_SECONDS = int(os.getenv("WORKER_INACTIVE_THRESHOLD_SECONDS", "45"))
+JOB_TIMEOUT_SECONDS = int(os.getenv("JOB_TIMEOUT_SECONDS", "900"))
 VPS_BASE_URL = os.getenv("VPS_BASE_URL", "").strip().rstrip("/")
 
 

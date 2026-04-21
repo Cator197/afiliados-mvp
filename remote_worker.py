@@ -86,7 +86,7 @@ def wait_for_manual_login_if_needed(bot) -> None:
 
     while True:
         try:
-            if bot.esta_logado(force_check=True) and bot.portal_pronto(force_check=True):
+            if bot.esta_logado(passive_check=True) and bot.portal_pronto(passive_check=True):
                 logger.info("[WORKER] Login manual detectado/restabelecido. Retomando processamento.")
                 return
         except Exception:

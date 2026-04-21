@@ -162,9 +162,16 @@ class AfiliadoBot:
         )
         self.abrir_portal()
 
-    def esta_logado(self, force_check: bool = False) -> bool:
-        if self._validacao_bloqueada_por_login_manual(force_check=force_check):
+    def esta_logado(self, force_check: bool = False, passive_check: bool = False) -> bool:
+        if self._validacao_bloqueada_por_login_manual(force_check=(force_check or passive_check)):
             return False
+
+        if passive_check:
+            url_atual = (self.driver.current_url or "").lower()
+            autenticado = "mercadolivre.com.br" in url_atual and not self._esta_em_tela_login()
+            if autenticado:
+                self._set_aguardando_login_manual(False)
+            return autenticado
 
         logger.info("[BOT FLOW] Etapa: verificar se sessão está autenticada.")
         self.driver.get(LINK_BUILDER_URL)
@@ -174,9 +181,18 @@ class AfiliadoBot:
             self._set_aguardando_login_manual(False)
         return autenticado
 
-    def portal_pronto(self, force_check: bool = False) -> bool:
-        if self._validacao_bloqueada_por_login_manual(force_check=force_check):
+    def portal_pronto(self, force_check: bool = False, passive_check: bool = False) -> bool:
+        if self._validacao_bloqueada_por_login_manual(force_check=(force_check or passive_check)):
             return False
+
+        if passive_check:
+            if self._esta_em_tela_login():
+                self._set_aguardando_login_manual(True)
+                return False
+            pronto = self._portal_tem_campo_url()
+            if pronto:
+                self._set_aguardando_login_manual(False)
+            return pronto
 
         try:
             logger.info("[BOT FLOW] Etapa: validar login/sessão no portal.")

@@ -38,7 +38,7 @@ from repositories.links_repo import (
 )
 from repositories.admin_repo import validate_admin_login
 from repositories.worker_status_repo import upsert_worker_heartbeat, get_worker_status
-from init_db import ensure_jobs_worker_columns, ensure_worker_heartbeats_table
+from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table
 
 from config import DATA_DIR, LOGS_DIR
 
@@ -77,6 +77,7 @@ def configure_logging():
 
 
 configure_logging()
+ensure_usuarios_password_column()
 ensure_jobs_worker_columns()
 ensure_worker_heartbeats_table()
 

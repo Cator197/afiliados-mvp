@@ -18,6 +18,7 @@ def create_tables():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         codigo_usuario TEXT UNIQUE NOT NULL,
         nome TEXT NOT NULL,
+        password_hash TEXT,
         ativo INTEGER NOT NULL DEFAULT 1,
         criado_em TEXT NOT NULL
     )
@@ -96,6 +97,20 @@ def ensure_jobs_worker_columns():
 
     if "claimed_em" not in existing_columns:
         cursor.execute("ALTER TABLE jobs ADD COLUMN claimed_em TEXT")
+
+    conn.commit()
+    conn.close()
+
+
+def ensure_usuarios_password_column():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("PRAGMA table_info(usuarios)")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+
+    if "password_hash" not in existing_columns:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN password_hash TEXT")
 
     conn.commit()
     conn.close()
@@ -186,6 +201,7 @@ def create_sample_users():
 if __name__ == "__main__":
     ensure_directories()
     create_tables()
+    ensure_usuarios_password_column()
     ensure_jobs_worker_columns()
     ensure_worker_heartbeats_table()
     create_default_admin()

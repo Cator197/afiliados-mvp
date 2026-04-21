@@ -6,6 +6,7 @@ from config import HOST, PORT, DEBUG
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from functools import wraps
+import re
 
 from flask import (
     Flask, jsonify, request, render_template,
@@ -38,7 +39,8 @@ from repositories.links_repo import (
 )
 from repositories.admin_repo import validate_admin_login
 from repositories.worker_status_repo import upsert_worker_heartbeat, get_worker_status
-from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table
+from repositories.cadastro_solicitacoes_repo import create_cadastro_solicitacao
+from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table
 
 from config import DATA_DIR, LOGS_DIR
 
@@ -80,6 +82,7 @@ configure_logging()
 ensure_usuarios_password_column()
 ensure_jobs_worker_columns()
 ensure_worker_heartbeats_table()
+ensure_cadastro_solicitacoes_table()
 
 
 def login_required_admin(f):
@@ -134,6 +137,13 @@ def get_request_worker_id(payload: dict | None = None) -> str:
     payload = payload or {}
     return payload.get("worker_id", "").strip() or request.headers.get("X-Worker-Id", "").strip()
 
+
+
+
+def is_valid_email(email: str) -> bool:
+    if not email:
+        return False
+    return bool(re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email))
 
 def is_valid_mercadolivre_url(url: str) -> bool:
     parsed = urlparse(url)
@@ -368,6 +378,50 @@ def validar_usuario():
         "erro": "Fluxo legado desativado. Utilize /api/login com código e senha."
     }), 410
 
+
+
+
+@app.route("/solicitar-cadastro", methods=["GET"])
+def pagina_solicitar_cadastro():
+    return render_template("solicitar_cadastro.html")
+
+
+@app.route("/api/solicitar-cadastro", methods=["POST"])
+def solicitar_cadastro_publico():
+    data = request.get_json(silent=True) or {}
+
+    nome_completo = data.get("nome_completo", "").strip()
+    email = data.get("email", "").strip().lower()
+    codigo_indicacao = data.get("codigo_indicacao", "").strip() or None
+
+    if not nome_completo:
+        return jsonify({"ok": False, "erro": "Nome completo é obrigatório."}), 400
+
+    if not email:
+        return jsonify({"ok": False, "erro": "Email é obrigatório."}), 400
+
+    if not is_valid_email(email):
+        return jsonify({"ok": False, "erro": "Email inválido."}), 400
+
+    try:
+        solicitacao_id = create_cadastro_solicitacao(
+            nome_completo=nome_completo,
+            email=email,
+            codigo_indicacao=codigo_indicacao,
+            whatsapp=None,
+            status="novo",
+            criado_em=now_str(),
+            atualizado_em=now_str(),
+        )
+    except Exception:
+        app.logger.exception("Falha ao criar solicitação de cadastro.")
+        return jsonify({"ok": False, "erro": "Não foi possível registrar sua solicitação agora. Tente novamente."}), 500
+
+    return jsonify({
+        "ok": True,
+        "message": "Solicitação enviada com sucesso. Em breve faremos a análise manual.",
+        "solicitacao_id": solicitacao_id,
+    }), 201
 
 @app.route("/api/solicitar-link", methods=["POST"])
 @login_required_user

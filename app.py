@@ -26,7 +26,16 @@ from config import (
     JOB_TIMEOUT_SECONDS,
     WORKER_INACTIVE_THRESHOLD_SECONDS,
 )
-from repositories.usuarios_repo import create_user, get_user_by_codigo, get_user_by_codigo_any_status, validate_user_login
+from repositories.usuarios_repo import (
+    create_user,
+    get_user_by_codigo,
+    get_user_by_codigo_any_status,
+    get_user_by_id,
+    list_users,
+    update_user_active_status,
+    update_user_password,
+    validate_user_login,
+)
 from repositories.jobs_repo import create_job, get_job_by_id, claim_next_job, update_job_status, list_jobs, reclaim_stuck_jobs, get_jobs_status_counts
 from repositories.links_repo import (
     get_links_by_usuario_id,
@@ -175,6 +184,7 @@ def admin_logado():
 
 CADASTRO_SOLICITACAO_STATUS_VALIDOS = {"novo", "em_analise", "aprovado", "rejeitado"}
 MIN_USER_PASSWORD_LENGTH = 6
+ADMIN_USER_ACTIONS = {"toggle_ativo", "reset_senha"}
 
 
 @app.route("/", methods=["GET"])
@@ -459,6 +469,59 @@ def admin_criar_usuario():
         },
         erro=None,
         sucesso="Usuário criado com sucesso.",
+    )
+
+
+@app.route("/admin/usuarios", methods=["GET"])
+@login_required_admin
+def admin_usuarios():
+    if not admin_logado():
+        return redirect(url_for("admin_login"))
+
+    return render_template(
+        "admin_usuarios.html",
+        admin_username=session.get("admin_username"),
+        usuarios=list_users(),
+        erro=request.args.get("erro", "").strip() or None,
+        sucesso=request.args.get("sucesso", "").strip() or None,
+    )
+
+
+@app.route("/admin/usuarios/<int:user_id>/atualizar", methods=["POST"])
+@login_required_admin
+def admin_atualizar_usuario(user_id):
+    if not admin_logado():
+        return redirect(url_for("admin_login"))
+
+    usuario = get_user_by_id(user_id)
+    if not usuario:
+        return redirect(url_for("admin_usuarios", erro="Usuário não encontrado."))
+
+    acao = request.form.get("acao", "").strip()
+    if acao not in ADMIN_USER_ACTIONS:
+        return redirect(url_for("admin_usuarios", erro="Ação inválida."))
+
+    if acao == "toggle_ativo":
+        novo_status = 0 if usuario["ativo"] else 1
+        update_user_active_status(user_id=user_id, ativo=novo_status)
+
+        status_legivel = "ativado" if novo_status else "desativado"
+        return redirect(
+            url_for("admin_usuarios", sucesso=f"Usuário {usuario['codigo_usuario']} {status_legivel}.")
+        )
+
+    nova_senha = request.form.get("nova_senha", "")
+    if len(nova_senha) < MIN_USER_PASSWORD_LENGTH:
+        return redirect(
+            url_for(
+                "admin_usuarios",
+                erro=f"A nova senha deve ter no mínimo {MIN_USER_PASSWORD_LENGTH} caracteres.",
+            )
+        )
+
+    update_user_password(user_id=user_id, password=nova_senha)
+    return redirect(
+        url_for("admin_usuarios", sucesso=f"Senha do usuário {usuario['codigo_usuario']} atualizada.")
     )
 
 

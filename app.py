@@ -4,6 +4,7 @@ import os
 import sys
 from config import HOST, PORT, DEBUG
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 from functools import wraps
 
 from flask import (
@@ -13,6 +14,7 @@ from flask import (
 
 from config import (
     SECRET_KEY,
+    SESSION_COOKIE_SECURE,
     DOMINIOS_PERMITIDOS,
     JOB_STATUS_NA_FILA,
     JOB_STATUS_PROCESSANDO,
@@ -47,6 +49,9 @@ LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = SESSION_COOKIE_SECURE
 
 
 def configure_logging():
@@ -103,11 +108,21 @@ def get_request_worker_id(payload: dict | None = None) -> str:
 
 
 def is_valid_mercadolivre_url(url: str) -> bool:
-    if not url.startswith("http"):
+    parsed = urlparse(url)
+
+    if parsed.scheme.lower() not in {"http", "https"}:
         return False
 
-    url_lower = url.lower()
-    return any(dominio in url_lower for dominio in DOMINIOS_PERMITIDOS)
+    hostname = (parsed.hostname or "").strip().lower().rstrip(".")
+    if not hostname:
+        return False
+
+    for dominio in DOMINIOS_PERMITIDOS:
+        domain = dominio.lower()
+        if hostname == domain or hostname.endswith(f".{domain}"):
+            return True
+
+    return False
 
 
 def admin_logado():

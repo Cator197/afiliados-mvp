@@ -58,6 +58,13 @@ class PublicSignupTests(unittest.TestCase):
         import app as app_module
 
         app_module._last_signup_attempt_by_email.clear()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM links_gerados")
+        cursor.execute("DELETE FROM cadastro_solicitacoes")
+        cursor.execute("DELETE FROM usuarios")
+        conn.commit()
+        conn.close()
 
     def _extract_csrf_token(self, html):
         match = re.search(r'name="csrf_token" value="([^"]+)"', html)
@@ -191,6 +198,49 @@ class PublicSignupTests(unittest.TestCase):
         conn.close()
         return solicitacao_id
 
+    def _criar_usuario(self, codigo_usuario, nome):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (codigo_usuario, nome, "hash", 1, "2026-01-01 00:00:00"),
+        )
+        usuario_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return usuario_id
+
+    def _criar_link(self, usuario_id, status, plataforma, sufixo):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO links_gerados (
+                usuario_id, job_id, url_original, url_afiliado, plataforma, status,
+                percentual_cashback, valor_comissao, valor_cashback, observacoes_admin, criado_em, atualizado_em
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                usuario_id,
+                f"job-{sufixo}",
+                f"https://site.com/produto/{sufixo}",
+                f"https://afiliado.com/{sufixo}",
+                plataforma,
+                status,
+                50.0,
+                10.0,
+                5.0,
+                None,
+                "2026-01-01 00:00:00",
+                "2026-01-01 00:00:00",
+            ),
+        )
+        conn.commit()
+        conn.close()
+
     def test_admin_logado_abre_pagina_solicitacoes(self):
         self._login_admin()
         response = self.client.get("/admin/solicitacoes")
@@ -208,6 +258,70 @@ class PublicSignupTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("aprovado@example.com", body)
         self.assertNotIn("novo@example.com", body)
+
+    def test_filtro_por_email_e_codigo_indicacao_funciona(self):
+        self._criar_solicitacao("Pessoa Um", "um@example.com", status="novo")
+        self._criar_solicitacao("Pessoa Dois", "dois@example.com", status="novo")
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE cadastro_solicitacoes SET codigo_indicacao = ? WHERE email = ?",
+            ("CODIGO-ALVO", "dois@example.com"),
+        )
+        conn.commit()
+        conn.close()
+        self._login_admin()
+
+        response = self.client.get("/admin/solicitacoes?email=dois%40example.com&codigo_indicacao=CODIGO-ALVO")
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("dois@example.com", body)
+        self.assertNotIn("um@example.com", body)
+
+    def test_paginacao_de_solicitacoes_funciona(self):
+        for i in range(1, 6):
+            self._criar_solicitacao(f"Pessoa {i}", f"pessoa{i}@example.com", status="novo")
+        self._login_admin()
+
+        primeira = self.client.get("/admin/solicitacoes?limit=2&page=1")
+        segunda = self.client.get("/admin/solicitacoes?limit=2&page=2")
+
+        body_primeira = primeira.get_data(as_text=True)
+        body_segunda = segunda.get_data(as_text=True)
+
+        self.assertEqual(primeira.status_code, 200)
+        self.assertIn("pessoa5@example.com", body_primeira)
+        self.assertIn("pessoa4@example.com", body_primeira)
+        self.assertNotIn("pessoa3@example.com", body_primeira)
+        self.assertIn("pessoa3@example.com", body_segunda)
+        self.assertIn("pessoa2@example.com", body_segunda)
+        self.assertNotIn("pessoa5@example.com", body_segunda)
+
+    def test_filtro_e_paginacao_de_links_funcionam(self):
+        usuario_a = self._criar_usuario("USR-A", "Usuário A")
+        usuario_b = self._criar_usuario("USR-B", "Usuário B")
+        self._criar_link(usuario_a, "cashback_pago", "shopee", "a1")
+        self._criar_link(usuario_a, "cashback_pago", "shopee", "a2")
+        self._criar_link(usuario_a, "cashback_pago", "shopee", "a3")
+        self._criar_link(usuario_b, "aguardando_verificacao", "mercadolivre", "b1")
+        self._login_admin()
+
+        primeira = self.client.get(
+            "/admin/links?status=cashback_pago&plataforma=shopee&codigo_usuario=USR-A&limit=2&page=1"
+        )
+        segunda = self.client.get(
+            "/admin/links?status=cashback_pago&plataforma=shopee&codigo_usuario=USR-A&limit=2&page=2"
+        )
+        body_primeira = primeira.get_data(as_text=True)
+        body_segunda = segunda.get_data(as_text=True)
+
+        self.assertEqual(primeira.status_code, 200)
+        self.assertIn("https://site.com/produto/a3", body_primeira)
+        self.assertIn("https://site.com/produto/a2", body_primeira)
+        self.assertNotIn("https://site.com/produto/a1", body_primeira)
+        self.assertIn("https://site.com/produto/a1", body_segunda)
+        self.assertNotIn("https://site.com/produto/b1", body_primeira)
 
     def test_atualizacao_de_status_funciona(self):
         solicitacao_id = self._criar_solicitacao("Pessoa Status", "status@example.com", status="novo")

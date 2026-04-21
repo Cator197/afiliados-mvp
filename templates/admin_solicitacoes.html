@@ -22,7 +22,7 @@
         </div>
 
         <form method="GET" action="{{ url_for('admin_solicitacoes') }}" class="message-box">
-            <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;">
                 <div class="input-group" style="margin-bottom:0;">
                     <label for="status">Filtrar por status</label>
                     <select id="status" name="status">
@@ -34,11 +34,38 @@
                     </select>
                 </div>
 
+                <div class="input-group" style="margin-bottom:0;">
+                    <label for="email">Filtrar por email</label>
+                    <input type="text" id="email" name="email" value="{{ filtros.email }}">
+                </div>
+
+                <div class="input-group" style="margin-bottom:0;">
+                    <label for="codigo_indicacao">Filtrar por código de indicação</label>
+                    <input type="text" id="codigo_indicacao" name="codigo_indicacao" value="{{ filtros.codigo_indicacao }}">
+                </div>
+
                 <div class="actions" style="margin-top:0;">
+                    <input type="hidden" name="limit" value="{{ limit }}">
                     <button type="submit">Filtrar</button>
                 </div>
             </div>
         </form>
+
+        <div class="message-box" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span class="small">Total: {{ total }} registros · Página {{ page }} de {{ total_pages }}</span>
+            <div class="actions" style="margin-top:0;">
+                {% if has_prev %}
+                    <a class="btn" href="{{ url_for('admin_solicitacoes', page=page-1, limit=limit, status=filtros.status, email=filtros.email, codigo_indicacao=filtros.codigo_indicacao) }}">Anterior</a>
+                {% else %}
+                    <button type="button" disabled>Anterior</button>
+                {% endif %}
+                {% if has_next %}
+                    <a class="btn" href="{{ url_for('admin_solicitacoes', page=page+1, limit=limit, status=filtros.status, email=filtros.email, codigo_indicacao=filtros.codigo_indicacao) }}">Próxima</a>
+                {% else %}
+                    <button type="button" disabled>Próxima</button>
+                {% endif %}
+            </div>
+        </div>
 
         <div class="table-wrapper">
             <table>

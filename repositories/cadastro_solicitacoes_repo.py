@@ -55,28 +55,46 @@ def get_cadastro_solicitacao_by_id(solicitacao_id):
     return row
 
 
-def list_cadastro_solicitacoes(status=None):
+def list_cadastro_solicitacoes(status=None, email=None, codigo_indicacao=None, page=1, limit=20):
     conn = get_connection()
     cursor = conn.cursor()
 
-    query = """
-        SELECT *
+    base_query = """
         FROM cadastro_solicitacoes
         WHERE 1=1
     """
     params = []
 
     if status:
-        query += " AND status = ?"
+        base_query += " AND status = ?"
         params.append(status)
 
-    query += " ORDER BY id DESC"
+    if email:
+        base_query += " AND email LIKE ?"
+        params.append(f"%{email}%")
 
-    cursor.execute(query, tuple(params))
+    if codigo_indicacao:
+        base_query += " AND codigo_indicacao = ?"
+        params.append(codigo_indicacao)
+
+    cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))
+    total = cursor.fetchone()["total"]
+
+    page = max(page, 1)
+    limit = max(limit, 1)
+    offset = (page - 1) * limit
+    query = f"""
+        SELECT *
+        {base_query}
+        ORDER BY id DESC
+        LIMIT ? OFFSET ?
+    """
+
+    cursor.execute(query, tuple(params + [limit, offset]))
     rows = cursor.fetchall()
 
     conn.close()
-    return rows
+    return rows, total
 
 
 def update_cadastro_solicitacao_status(solicitacao_id, status=None, observacoes_admin=None, atualizado_em=None):

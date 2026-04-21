@@ -53,10 +53,27 @@
                 </div>
 
                 <div class="actions" style="margin-top:0;">
+                    <input type="hidden" name="limit" value="{{ limit }}">
                     <button type="submit">Filtrar</button>
                 </div>
             </div>
         </form>
+
+        <div class="message-box" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span class="small">Total: {{ total }} registros · Página {{ page }} de {{ total_pages }}</span>
+            <div class="actions" style="margin-top:0;">
+                {% if has_prev %}
+                    <a class="btn" href="{{ url_for('admin_links', page=page-1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma) }}">Anterior</a>
+                {% else %}
+                    <button type="button" disabled>Anterior</button>
+                {% endif %}
+                {% if has_next %}
+                    <a class="btn" href="{{ url_for('admin_links', page=page+1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma) }}">Próxima</a>
+                {% else %}
+                    <button type="button" disabled>Próxima</button>
+                {% endif %}
+            </div>
+        </div>
 
         <div class="table-wrapper">
             <table>

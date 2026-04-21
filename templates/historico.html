@@ -20,6 +20,23 @@
 
         <div id="mensagem" class="message-box" style="display:none;"></div>
 
+        <section class="history-summary" id="historySummary">
+            <div class="summary-card">
+                <span class="summary-label">Cashback pendente</span>
+                <strong id="summaryQuantidadePendente">0</strong>
+                <span class="summary-value" id="summaryValorPendente">R$ 0,00</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">Cashback pago</span>
+                <strong id="summaryQuantidadePago">0</strong>
+                <span class="summary-value" id="summaryValorPago">R$ 0,00</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">Cash perdido</span>
+                <strong id="summaryQuantidadePerdido">0</strong>
+            </div>
+        </section>
+
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -52,9 +69,28 @@
     <script>
         const historicoBody = document.getElementById("historicoBody");
         const mensagem = document.getElementById("mensagem");
+        const summaryQuantidadePendente = document.getElementById("summaryQuantidadePendente");
+        const summaryQuantidadePago = document.getElementById("summaryQuantidadePago");
+        const summaryQuantidadePerdido = document.getElementById("summaryQuantidadePerdido");
+        const summaryValorPendente = document.getElementById("summaryValorPendente");
+        const summaryValorPago = document.getElementById("summaryValorPago");
 
         function badgeHtml(status) {
             return `<span class="badge ${status}">${status}</span>`;
+        }
+
+        function formatarMoeda(valor) {
+            const numero = Number(valor || 0);
+            return `R$ ${numero.toFixed(2).replace(".", ",")}`;
+        }
+
+        function atualizarResumo(summary) {
+            const data = summary || {};
+            summaryQuantidadePendente.textContent = `${Number(data.quantidade_pendente || 0)} pendentes`;
+            summaryQuantidadePago.textContent = `${Number(data.quantidade_pago || 0)} pagos`;
+            summaryQuantidadePerdido.textContent = `${Number(data.quantidade_perdido || 0)} perdidos`;
+            summaryValorPendente.textContent = formatarMoeda(data.valor_pendente);
+            summaryValorPago.textContent = formatarMoeda(data.valor_pago);
         }
 
         function valorOuTraco(valor) {
@@ -78,15 +114,26 @@
 
         async function carregarHistorico() {
             try {
-                const resp = await fetch(`{{ url_for('listar_links_usuario', codigo_usuario='__CODIGO_USUARIO__') }}`.replace("__CODIGO_USUARIO__", encodeURIComponent(window.USUARIO.codigo_usuario)));
-                const data = await resp.json();
+                const codigoUsuario = encodeURIComponent(window.USUARIO.codigo_usuario);
+                const historicoUrl = `{{ url_for('listar_links_usuario', codigo_usuario='__CODIGO_USUARIO__') }}`.replace("__CODIGO_USUARIO__", codigoUsuario);
+                const resumoUrl = `{{ url_for('resumo_links_usuario', codigo_usuario='__CODIGO_USUARIO__') }}`.replace("__CODIGO_USUARIO__", codigoUsuario);
 
-                if (!data.ok) {
+                const [respHistorico, respResumo] = await Promise.all([
+                    fetch(historicoUrl),
+                    fetch(resumoUrl)
+                ]);
+
+                const data = await respHistorico.json();
+                const resumoData = await respResumo.json();
+
+                if (!data.ok || !resumoData.ok) {
                     mensagem.style.display = "block";
-                    mensagem.textContent = data.erro || "Erro ao carregar histórico.";
+                    mensagem.textContent = data.erro || resumoData.erro || "Erro ao carregar histórico.";
                     historicoBody.innerHTML = `<tr><td colspan="5">Não foi possível carregar os dados.</td></tr>`;
                     return;
                 }
+
+                atualizarResumo(resumoData.summary);
 
                 const links = data.links || [];
 

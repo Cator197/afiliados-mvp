@@ -5,9 +5,10 @@ from datetime import datetime
 
 import requests
 
-from bot_manager import get_bot, get_bot_status
+from bot_manager import get_bot, get_bot_status, set_bot_status
 from config import (
     BOT_STATUS_AGUARDANDO_LOGIN,
+    BOT_STATUS_ONLINE,
     VPS_BASE_URL,
     WORKER_API_TOKEN,
     WORKER_ID,
@@ -88,6 +89,7 @@ def wait_for_manual_login_if_needed(bot) -> None:
         try:
             if bot.esta_logado(passive_check=True) and bot.portal_pronto(passive_check=True):
                 logger.info("[WORKER] Login manual detectado/restabelecido. Retomando processamento.")
+                set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.")
                 return
         except Exception:
             logger.exception("[WORKER] Falha ao revalidar sessão durante espera de login manual.")
@@ -100,6 +102,9 @@ def ensure_bot_ready():
     status = get_bot_status()
 
     if status.get("status") == BOT_STATUS_AGUARDANDO_LOGIN:
+        if bot.esta_logado(passive_check=True) and bot.portal_pronto(passive_check=True):
+            set_bot_status(BOT_STATUS_ONLINE, "Robô pronto para uso.")
+            return bot
         wait_for_manual_login_if_needed(bot)
         return bot
 

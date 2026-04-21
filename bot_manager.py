@@ -3,7 +3,7 @@ import logging
 import os
 import getpass
 
-from services.browser_manager import criar_driver
+from services.browser_manager import criar_driver, liberar_profile_em_uso
 from services.afiliado_bot import AfiliadoBot
 from config import (
     BOT_STATUS_OFFLINE,
@@ -128,6 +128,17 @@ def get_bot(job_id: str | None = None):
                 driver_vivo,
                 bot_com_driver_valido,
             )
+            if _driver is not None:
+                try:
+                    _driver.quit()
+                except Exception:
+                    logger.warning(
+                        "%sFalha ao encerrar driver inválido; liberando lock de profile de forma defensiva.",
+                        _job_tag(job_id),
+                    )
+                    liberar_profile_em_uso()
+            _driver = None
+            _bot = None
             return criar_nova_instancia(job_id=job_id)
 
         logger.info("%sReusando instância atual do bot e sessão ativa do navegador.", _job_tag(job_id))
@@ -140,11 +151,12 @@ def reiniciar_bot(job_id: str | None = None):
     with _bot_lock:
         logger.warning("%sReiniciando bot sob demanda.", _job_tag(job_id))
         try:
-            if _driver is not None and driver_esta_vivo(_driver):
+            if _driver is not None:
                 _driver.quit()
                 logger.info("%sDriver anterior encerrado com sucesso.", _job_tag(job_id))
         except Exception:
             logger.exception("%sFalha ao encerrar driver anterior durante reinício.", _job_tag(job_id))
+            liberar_profile_em_uso()
 
         _driver = None
         _bot = None

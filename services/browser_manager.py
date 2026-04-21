@@ -25,6 +25,12 @@ _PROFILE_LOCK = threading.Lock()
 _PROFILE_IN_USE = False
 
 
+def liberar_profile_em_uso() -> None:
+    global _PROFILE_IN_USE
+    with _PROFILE_LOCK:
+        _PROFILE_IN_USE = False
+
+
 def _resolver_caminho_chrome() -> str | None:
     if CHROME_BINARY_PATH:
         caminho_configurado = Path(CHROME_BINARY_PATH).expanduser()

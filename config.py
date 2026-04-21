@@ -42,6 +42,9 @@ BOT_STATUS_ONLINE = "online"
 BOT_STATUS_AGUARDANDO_LOGIN = "aguardando_login_manual"
 BOT_STATUS_ERRO_RECUPERACAO = "erro_recuperacao"
 
+WORKER_API_TOKEN = os.getenv("WORKER_API_TOKEN", "")
+WORKER_ENABLED = os.getenv("WORKER_ENABLED", "true").lower() in {"1", "true", "yes"}
+
 
 # Selenium/Chrome runtime configuration (Ubuntu + Xvfb friendly)
 CHROME_HEADLESS = os.getenv("CHROME_HEADLESS", "false").lower() in {"1", "true", "yes"}

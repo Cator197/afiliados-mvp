@@ -15,18 +15,25 @@ from config import (
     SECRET_KEY,
     DOMINIOS_PERMITIDOS,
     JOB_STATUS_NA_FILA,
+    JOB_STATUS_CONCLUIDO,
+    JOB_STATUS_ERRO,
+    LINK_STATUS_AGUARDANDO_VERIFICACAO,
+    CASHBACK_PERCENTUAL_PADRAO,
+    WORKER_API_TOKEN,
+    WORKER_ENABLED,
 )
 from repositories.usuarios_repo import get_user_by_codigo
-from repositories.jobs_repo import create_job, get_job_by_id
+from repositories.jobs_repo import create_job, get_job_by_id, claim_next_job, update_job_status
 from repositories.links_repo import (
     get_links_by_usuario_id,
     get_all_links,
     get_link_by_id,
     update_link_admin_fields,
+    create_link_gerado,
 )
 from repositories.admin_repo import validate_admin_login
-from queue_manager import enqueue_job
 from bot_manager import get_bot_status
+from init_db import ensure_jobs_worker_columns
 
 from config import DATA_DIR, LOGS_DIR
 
@@ -62,6 +69,7 @@ def configure_logging():
 
 
 configure_logging()
+ensure_jobs_worker_columns()
 
 def login_required_admin(f):
     @wraps(f)
@@ -233,6 +241,26 @@ def health():
     })
 
 
+
+def worker_token_is_valid(token: str) -> bool:
+    if not WORKER_ENABLED:
+        return False
+
+    configured_token = (WORKER_API_TOKEN or "").strip()
+    return bool(configured_token) and token == configured_token
+
+
+def validate_worker_request():
+    worker_token = request.headers.get("X-Worker-Token", "").strip()
+
+    if not WORKER_ENABLED:
+        return jsonify({"ok": False, "erro": "Worker desabilitado."}), 503
+
+    if not worker_token_is_valid(worker_token):
+        return jsonify({"ok": False, "erro": "Não autorizado."}), 401
+
+    return None
+
 @app.route("/api/validar-usuario", methods=["POST"])
 def validar_usuario():
     data = request.get_json(silent=True) or {}
@@ -295,18 +323,6 @@ def solicitar_link():
             "erro": "Usuário não encontrado."
         }), 404
 
-    bot_status = get_bot_status()
-
-    if bot_status["status"] in ("aguardando_login_manual", "erro_recuperacao"):
-        return jsonify({
-            "ok": False,
-            "erro": (
-                "Gerador indisponível: navegador oficial do robô está aberto no Selenium e "
-                "aguarda login manual via VNC no perfil persistente."
-            ),
-            "bot": bot_status
-        }), 503
-
     job_id = str(uuid.uuid4())
     app.logger.info(
         "[JOB %s] Recebida solicitação de geração de link | usuario=%s | url=%s",
@@ -324,18 +340,106 @@ def solicitar_link():
     )
     app.logger.info("[JOB %s] Job persistido com status inicial '%s'.", job_id, JOB_STATUS_NA_FILA)
 
-    enqueue_job({
-        "job_id": job_id,
-        "usuario_id": usuario["id"],
-        "url_original": url
-    })
-    app.logger.info("[JOB %s] Job enviado para fila interna.", job_id)
-
     return jsonify({
         "ok": True,
         "job_id": job_id,
         "status": JOB_STATUS_NA_FILA
     })
+
+
+@app.route("/api/worker/jobs/claim", methods=["POST"])
+def worker_claim_job():
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json(silent=True) or {}
+    worker_id = data.get("worker_id", "").strip() or request.headers.get("X-Worker-Id", "").strip()
+
+    if not worker_id:
+        return jsonify({"ok": False, "erro": "worker_id não informado."}), 400
+
+    job = claim_next_job(worker_id=worker_id, claimed_em=now_str())
+
+    if not job:
+        return jsonify({"ok": True, "job": None})
+
+    return jsonify({
+        "ok": True,
+        "job": {
+            "id": job["id"],
+            "usuario_id": job["usuario_id"],
+            "url_original": job["url_original"],
+            "status": job["status"],
+            "assigned_worker_id": job["assigned_worker_id"],
+            "claimed_em": job["claimed_em"],
+            "criado_em": job["criado_em"],
+        }
+    })
+
+
+@app.route("/api/worker/jobs/<job_id>/success", methods=["POST"])
+def worker_job_success(job_id):
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json(silent=True) or {}
+    url_afiliado = data.get("url_afiliado", "").strip()
+
+    if not url_afiliado:
+        return jsonify({"ok": False, "erro": "url_afiliado não informada."}), 400
+
+    job = get_job_by_id(job_id)
+    if not job:
+        return jsonify({"ok": False, "erro": "Job não encontrado."}), 404
+
+    update_job_status(
+        job_id=job_id,
+        status=JOB_STATUS_CONCLUIDO,
+        finalizado_em=now_str(),
+        resultado_link=url_afiliado,
+        mensagem_erro="",
+    )
+
+    create_link_gerado(
+        usuario_id=job["usuario_id"],
+        job_id=job_id,
+        url_original=job["url_original"],
+        url_afiliado=url_afiliado,
+        status=LINK_STATUS_AGUARDANDO_VERIFICACAO,
+        percentual_cashback=CASHBACK_PERCENTUAL_PADRAO,
+        criado_em=now_str(),
+        atualizado_em=now_str(),
+    )
+
+    return jsonify({"ok": True, "job_id": job_id, "status": JOB_STATUS_CONCLUIDO})
+
+
+@app.route("/api/worker/jobs/<job_id>/error", methods=["POST"])
+def worker_job_error(job_id):
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json(silent=True) or {}
+    mensagem_erro = data.get("mensagem_erro", "").strip()
+
+    if not mensagem_erro:
+        return jsonify({"ok": False, "erro": "mensagem_erro não informada."}), 400
+
+    job = get_job_by_id(job_id)
+    if not job:
+        return jsonify({"ok": False, "erro": "Job não encontrado."}), 404
+
+    update_job_status(
+        job_id=job_id,
+        status=JOB_STATUS_ERRO,
+        finalizado_em=now_str(),
+        mensagem_erro=mensagem_erro,
+    )
+
+    return jsonify({"ok": True, "job_id": job_id, "status": JOB_STATUS_ERRO})
 
 
 @app.route("/api/jobs/<job_id>", methods=["GET"])

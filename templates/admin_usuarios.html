@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar usuários | Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 1200px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div>
+                <h1>Gerenciar usuários</h1>
+                <p class="subtitle">Logado como {{ admin_username }}</p>
+            </div>
+            <div class="actions">
+                <a class="btn" href="{{ url_for('admin_links') }}">Voltar para links</a>
+                <a class="btn" href="{{ url_for('admin_criar_usuario') }}">Criar usuário</a>
+                <a class="btn" href="{{ url_for('admin_logout') }}">Sair</a>
+            </div>
+        </div>
+
+        {% if erro %}
+            <div class="message-box" style="background:#fff3f3;border-color:#f0b7b7;">{{ erro }}</div>
+        {% endif %}
+
+        {% if sucesso %}
+            <div class="message-box" style="background:#e6f7ea;border-color:#b6e3c1;">{{ sucesso }}</div>
+        {% endif %}
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nome</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if usuarios %}
+                        {% for usuario in usuarios %}
+                            <tr>
+                                <td>{{ usuario.codigo_usuario }}</td>
+                                <td>{{ usuario.nome }}</td>
+                                <td>
+                                    <span class="badge {{ 'compra_confirmada' if usuario.ativo else 'erro' }}">
+                                        {{ 'Ativo' if usuario.ativo else 'Inativo' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
+                                        <form method="POST" action="{{ url_for('admin_atualizar_usuario', user_id=usuario.id) }}">
+                                            <input type="hidden" name="acao" value="toggle_ativo">
+                                            <button type="submit">{{ 'Desativar' if usuario.ativo else 'Ativar' }}</button>
+                                        </form>
+
+                                        <form method="POST" action="{{ url_for('admin_atualizar_usuario', user_id=usuario.id) }}" style="display:flex;gap:8px;align-items:center;">
+                                            <input type="hidden" name="acao" value="reset_senha">
+                                            <input
+                                                type="password"
+                                                name="nova_senha"
+                                                minlength="6"
+                                                required
+                                                placeholder="Nova senha"
+                                                style="min-width:180px;"
+                                            >
+                                            <button type="submit">Reset senha</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4">Nenhum usuário encontrado.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

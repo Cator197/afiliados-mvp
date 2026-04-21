@@ -47,6 +47,23 @@ def get_user_by_id(user_id: int):
     return row
 
 
+def list_users():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, codigo_usuario, nome, ativo, criado_em
+        FROM usuarios
+        ORDER BY codigo_usuario ASC
+        """
+    )
+    rows = cursor.fetchall()
+
+    conn.close()
+    return rows
+
+
 def create_user(codigo_usuario: str, nome: str, password: str, criado_em: str, ativo: int = 1) -> int:
     password_hash = hash_user_password(password)
     conn = get_connection()
@@ -81,6 +98,24 @@ def update_user_password(user_id: int, password: str) -> int:
         WHERE id = ?
         """,
         (password_hash, user_id),
+    )
+    conn.commit()
+    rows_updated = cursor.rowcount
+    conn.close()
+    return rows_updated
+
+
+def update_user_active_status(user_id: int, ativo: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE usuarios
+        SET ativo = ?
+        WHERE id = ?
+        """,
+        (ativo, user_id),
     )
     conn.commit()
     rows_updated = cursor.rowcount

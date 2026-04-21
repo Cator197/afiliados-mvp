@@ -1,5 +1,5 @@
 from database import get_connection
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
 def get_user_by_codigo(codigo_usuario: str):
@@ -10,6 +10,21 @@ def get_user_by_codigo(codigo_usuario: str):
         SELECT *
         FROM usuarios
         WHERE codigo_usuario = ? AND ativo = 1
+    """, (codigo_usuario,))
+    row = cursor.fetchone()
+
+    conn.close()
+    return row
+
+
+def get_user_by_codigo_any_status(codigo_usuario: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT *
+        FROM usuarios
+        WHERE codigo_usuario = ?
     """, (codigo_usuario,))
     row = cursor.fetchone()
 
@@ -60,3 +75,22 @@ def user_has_password(user_id: int) -> bool:
     if not user:
         return False
     return bool(user["password_hash"])
+
+
+def validate_user_login(codigo_usuario: str, password: str) -> dict:
+    usuario = get_user_by_codigo_any_status(codigo_usuario)
+
+    if not usuario:
+        return {"ok": False, "erro": "Credenciais inválidas.", "status_code": 401}
+
+    if not usuario["ativo"]:
+        return {"ok": False, "erro": "Usuário inativo.", "status_code": 403}
+
+    password_hash = usuario["password_hash"]
+    if not password_hash:
+        return {"ok": False, "erro": "Usuário sem senha definida. Solicite a criação de senha ao suporte.", "status_code": 403}
+
+    if not check_password_hash(password_hash, password):
+        return {"ok": False, "erro": "Credenciais inválidas.", "status_code": 401}
+
+    return {"ok": True, "usuario": usuario}

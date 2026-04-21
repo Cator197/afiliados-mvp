@@ -229,6 +229,14 @@ def admin_logado():
     return bool(session.get("admin_logged_in"))
 
 
+def parse_positive_int(value, default):
+    try:
+        parsed = int(value)
+        return parsed if parsed > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
 CADASTRO_SOLICITACAO_STATUS_VALIDOS = {"novo", "em_analise", "aprovado", "rejeitado"}
 MIN_USER_PASSWORD_LENGTH = 6
 ADMIN_USER_ACTIONS = {"toggle_ativo", "reset_senha"}
@@ -337,13 +345,30 @@ def admin_links():
     status = request.args.get("status", "").strip() or None
     codigo_usuario = request.args.get("codigo_usuario", "").strip() or None
     plataforma = request.args.get("plataforma", "").strip() or None
+    page = parse_positive_int(request.args.get("page"), 1)
+    limit = parse_positive_int(request.args.get("limit"), 20)
 
-    links = get_all_links(status=status, codigo_usuario=codigo_usuario, plataforma=plataforma)
+    links, total = get_all_links(
+        status=status,
+        codigo_usuario=codigo_usuario,
+        plataforma=plataforma,
+        page=page,
+        limit=limit,
+    )
+    total_pages = max((total + limit - 1) // limit, 1)
+    has_prev = page > 1
+    has_next = page < total_pages
 
     return render_template(
         "admin_links.html",
         admin_username=session.get("admin_username"),
         links=links,
+        page=page,
+        limit=limit,
+        total=total,
+        total_pages=total_pages,
+        has_prev=has_prev,
+        has_next=has_next,
         platform_labels=PLATFORM_LABELS,
         filtros={
             "status": status or "",
@@ -411,14 +436,37 @@ def admin_solicitacoes():
 
     status = request.args.get("status", "").strip()
     status_filtro = status if status in CADASTRO_SOLICITACAO_STATUS_VALIDOS else None
+    email = request.args.get("email", "").strip() or None
+    codigo_indicacao = request.args.get("codigo_indicacao", "").strip() or None
+    page = parse_positive_int(request.args.get("page"), 1)
+    limit = parse_positive_int(request.args.get("limit"), 20)
 
-    solicitacoes = list_cadastro_solicitacoes(status=status_filtro)
+    solicitacoes, total = list_cadastro_solicitacoes(
+        status=status_filtro,
+        email=email,
+        codigo_indicacao=codigo_indicacao,
+        page=page,
+        limit=limit,
+    )
+    total_pages = max((total + limit - 1) // limit, 1)
+    has_prev = page > 1
+    has_next = page < total_pages
 
     return render_template(
         "admin_solicitacoes.html",
         admin_username=session.get("admin_username"),
         solicitacoes=solicitacoes,
-        filtros={"status": status_filtro or ""},
+        page=page,
+        limit=limit,
+        total=total,
+        total_pages=total_pages,
+        has_prev=has_prev,
+        has_next=has_next,
+        filtros={
+            "status": status_filtro or "",
+            "email": email or "",
+            "codigo_indicacao": codigo_indicacao or "",
+        },
     )
 
 

@@ -60,12 +60,11 @@ def get_link_by_id(link_id):
     return row
 
 
-def get_all_links(status=None, codigo_usuario=None, plataforma=None):
+def get_all_links(status=None, codigo_usuario=None, plataforma=None, page=1, limit=20):
     conn = get_connection()
     cursor = conn.cursor()
 
-    query = """
-        SELECT lg.*, u.codigo_usuario, u.nome
+    base_query = """
         FROM links_gerados lg
         JOIN usuarios u ON u.id = lg.usuario_id
         WHERE 1=1
@@ -73,24 +72,35 @@ def get_all_links(status=None, codigo_usuario=None, plataforma=None):
     params = []
 
     if status:
-        query += " AND lg.status = ?"
+        base_query += " AND lg.status = ?"
         params.append(status)
 
     if codigo_usuario:
-        query += " AND u.codigo_usuario = ?"
+        base_query += " AND u.codigo_usuario = ?"
         params.append(codigo_usuario)
 
     if plataforma:
-        query += " AND lg.plataforma = ?"
+        base_query += " AND lg.plataforma = ?"
         params.append(plataforma)
 
-    query += " ORDER BY lg.id DESC"
+    cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))
+    total = cursor.fetchone()["total"]
 
-    cursor.execute(query, tuple(params))
+    query = f"""
+        SELECT lg.*, u.codigo_usuario, u.nome
+        {base_query}
+        ORDER BY lg.id DESC
+        LIMIT ? OFFSET ?
+    """
+    page = max(page, 1)
+    limit = max(limit, 1)
+    offset = (page - 1) * limit
+
+    cursor.execute(query, tuple(params + [limit, offset]))
     rows = cursor.fetchall()
 
     conn.close()
-    return rows
+    return rows, total
 
 
 def update_link_admin_fields(link_id, status=None, valor_comissao=None,

@@ -97,6 +97,7 @@ class PlatformSupportTests(unittest.TestCase):
         payload = response.get_json()
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["plataforma"], PLATFORM_MERCADOLIVRE)
+        self.assertEqual(payload["plataforma_label"], "Mercado Livre")
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -122,6 +123,7 @@ class PlatformSupportTests(unittest.TestCase):
         payload = response.get_json()
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["plataforma"], PLATFORM_SHOPEE)
+        self.assertEqual(payload["plataforma_label"], "Shopee")
 
         conn = get_connection()
         cursor = conn.cursor()

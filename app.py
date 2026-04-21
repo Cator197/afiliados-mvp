@@ -135,6 +135,18 @@ def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+PLATFORM_LABELS = {
+    PLATFORM_MERCADOLIVRE: "Mercado Livre",
+    PLATFORM_SHOPEE: "Shopee",
+}
+
+
+def get_platform_label(plataforma: str | None) -> str:
+    if not plataforma:
+        return "Não informado"
+    return PLATFORM_LABELS.get(plataforma, plataforma.capitalize())
+
+
 def parse_datetime(dt_str: str | None):
     if not dt_str:
         return None
@@ -247,16 +259,19 @@ def admin_links():
 
     status = request.args.get("status", "").strip() or None
     codigo_usuario = request.args.get("codigo_usuario", "").strip() or None
+    plataforma = request.args.get("plataforma", "").strip() or None
 
-    links = get_all_links(status=status, codigo_usuario=codigo_usuario)
+    links = get_all_links(status=status, codigo_usuario=codigo_usuario, plataforma=plataforma)
 
     return render_template(
         "admin_links.html",
         admin_username=session.get("admin_username"),
         links=links,
+        platform_labels=PLATFORM_LABELS,
         filtros={
             "status": status or "",
-            "codigo_usuario": codigo_usuario or ""
+            "codigo_usuario": codigo_usuario or "",
+            "plataforma": plataforma or "",
         }
     )
 
@@ -533,6 +548,7 @@ def solicitar_link():
         "job_id": job_id,
         "status": JOB_STATUS_NA_FILA,
         "plataforma": plataforma,
+        "plataforma_label": get_platform_label(plataforma),
     })
 
 
@@ -578,6 +594,7 @@ def worker_claim_job():
             "usuario_id": job["usuario_id"],
             "url_original": job["url_original"],
             "plataforma": job["plataforma"],
+            "plataforma_label": get_platform_label(job["plataforma"]),
             "status": job["status"],
             "assigned_worker_id": job["assigned_worker_id"],
             "claimed_em": job["claimed_em"],
@@ -748,6 +765,7 @@ def consultar_job(job_id):
             "usuario_id": job["usuario_id"],
             "url_original": job["url_original"],
             "plataforma": job["plataforma"],
+            "plataforma_label": get_platform_label(job["plataforma"]),
             "status": job["status"],
             "resultado_link": job["resultado_link"],
             "mensagem_erro": job["mensagem_erro"],
@@ -821,6 +839,7 @@ def listar_links_usuario(codigo_usuario):
                 "url_original": link["url_original"],
                 "url_afiliado": link["url_afiliado"],
                 "plataforma": link["plataforma"],
+                "plataforma_label": get_platform_label(link["plataforma"]),
                 "status": link["status"],
                 "percentual_cashback": link["percentual_cashback"],
                 "valor_comissao": link["valor_comissao"],

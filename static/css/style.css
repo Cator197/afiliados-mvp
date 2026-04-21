@@ -158,6 +158,29 @@ th {
     color: #117a3d;
 }
 
+.badge.platform-badge.mercadolivre {
+    background: #fff3cf;
+    color: #8a6500;
+}
+
+.badge.platform-badge.shopee {
+    background: #ffe8e1;
+    color: #a63c12;
+}
+
+.badge.platform-badge.nao_informado {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.row-warning {
+    background: #fff7f7;
+}
+
+.row-neutral {
+    background: #fffdf2;
+}
+
 .small {
     font-size: 13px;
     color: #666;

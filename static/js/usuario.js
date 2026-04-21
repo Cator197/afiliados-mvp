@@ -12,6 +12,34 @@ function mostrarStatus(texto, erro = false) {
     statusBox.style.background = erro ? "#fff3f3" : "#f7f8fa";
 }
 
+function labelPlataforma(plataforma) {
+    if (plataforma === "mercadolivre") return "Mercado Livre";
+    if (plataforma === "shopee") return "Shopee";
+    return "";
+}
+
+function mensagemAmigavelErro(erro) {
+    const texto = (erro || "").toLowerCase();
+
+    if (texto.includes("sessão inválida") || texto.includes("expirada")) {
+        return "Sua sessão expirou. Faça login novamente para continuar.";
+    }
+    if (texto.includes("url não informada")) {
+        return "Informe a URL do produto para continuar.";
+    }
+    if (texto.includes("não pertence a uma plataforma suportada")) {
+        return "URL inválida ou plataforma não suportada. Use links do Mercado Livre ou Shopee.";
+    }
+    if (texto.includes("não autorizado")) {
+        return "Seu acesso expirou. Faça login novamente para continuar.";
+    }
+    if (texto.includes("não encontrado")) {
+        return "Não encontramos seus dados agora. Atualize a página e tente novamente.";
+    }
+
+    return erro || "Não foi possível concluir sua solicitação agora. Tente novamente.";
+}
+
 function mostrarResultado(link) {
     resultBox.style.display = "block";
     resultBox.innerHTML = `
@@ -33,7 +61,7 @@ async function consultarJob(jobId) {
         const data = await resp.json();
 
         if (!data.ok) {
-            mostrarStatus(data.erro || "Não foi possível consultar o job.", true);
+            mostrarStatus(mensagemAmigavelErro(data.erro), true);
             pararPolling();
             btnGerar.disabled = false;
             return;
@@ -43,17 +71,22 @@ async function consultarJob(jobId) {
         const status = job.status;
 
         if (status === "na_fila") {
-            mostrarStatus("Sua solicitação está na fila...");
+            mostrarStatus("Sua solicitação foi recebida e está na fila de processamento.");
             return;
         }
 
         if (status === "processando") {
-            mostrarStatus("Seu link está sendo gerado...");
+            mostrarStatus("Seu link está sendo gerado. Isso pode levar alguns instantes.");
             return;
         }
 
         if (status === "concluido") {
-            mostrarStatus("Link gerado com sucesso.");
+            const plataforma = labelPlataforma(job.plataforma);
+            mostrarStatus(
+                plataforma
+                    ? `Link da ${plataforma} gerado com sucesso.`
+                    : "Link gerado com sucesso."
+            );
             mostrarResultado(job.resultado_link);
             pararPolling();
             btnGerar.disabled = false;
@@ -61,7 +94,7 @@ async function consultarJob(jobId) {
         }
 
         if (status === "erro") {
-            mostrarStatus(job.mensagem_erro || "Ocorreu um erro ao gerar o link.", true);
+            mostrarStatus(mensagemAmigavelErro(job.mensagem_erro), true);
             pararPolling();
             btnGerar.disabled = false;
             return;
@@ -82,7 +115,7 @@ async function solicitarGeracao() {
     resultBox.innerHTML = "";
 
     if (!url) {
-        mostrarStatus("Cole uma URL do Mercado Livre antes de continuar.", true);
+        mostrarStatus("Cole uma URL de produto do Mercado Livre ou Shopee antes de continuar.", true);
         return;
     }
 
@@ -104,13 +137,18 @@ async function solicitarGeracao() {
         const data = await resp.json();
 
         if (!data.ok) {
-            mostrarStatus(data.erro || "Não foi possível solicitar a geração.", true);
+            mostrarStatus(mensagemAmigavelErro(data.erro), true);
             btnGerar.disabled = false;
             return;
         }
 
         const jobId = data.job_id;
-        mostrarStatus("Solicitação enviada. Aguardando processamento...");
+        const plataforma = labelPlataforma(data.plataforma);
+        mostrarStatus(
+            plataforma
+                ? `Solicitação enviada para ${plataforma}. Aguardando processamento...`
+                : "Solicitação enviada. Aguardando processamento..."
+        );
 
         pararPolling();
         pollingInterval = setInterval(() => consultarJob(jobId), 2000);

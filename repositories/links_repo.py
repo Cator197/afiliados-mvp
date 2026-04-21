@@ -60,7 +60,7 @@ def get_link_by_id(link_id):
     return row
 
 
-def get_all_links(status=None, codigo_usuario=None):
+def get_all_links(status=None, codigo_usuario=None, plataforma=None):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -79,6 +79,10 @@ def get_all_links(status=None, codigo_usuario=None):
     if codigo_usuario:
         query += " AND u.codigo_usuario = ?"
         params.append(codigo_usuario)
+
+    if plataforma:
+        query += " AND lg.plataforma = ?"
+        params.append(plataforma)
 
     query += " ORDER BY lg.id DESC"
 

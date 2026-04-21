@@ -44,6 +44,7 @@
                         <th>Data</th>
                         <th>URL original</th>
                         <th>Link afiliado</th>
+                        <th>Plataforma</th>
                         <th>Status</th>
 
                         <th>Cashback</th>
@@ -51,7 +52,7 @@
                 </thead>
                 <tbody id="historicoBody">
                     <tr>
-                        <td colspan="5">Carregando histórico...</td>
+                        <td colspan="6">Carregando histórico...</td>
                     </tr>
                 </tbody>
             </table>
@@ -77,6 +78,12 @@
 
         function badgeHtml(status) {
             return `<span class="badge ${status}">${status}</span>`;
+        }
+
+        function plataformaBadgeHtml(plataforma, plataformaLabel) {
+            const classe = plataforma || "nao_informado";
+            const label = plataformaLabel || "Não informado";
+            return `<span class="badge platform-badge ${classe}">${label}</span>`;
         }
 
         function formatarMoeda(valor) {
@@ -129,7 +136,7 @@
                 if (!data.ok || !resumoData.ok) {
                     mensagem.style.display = "block";
                     mensagem.textContent = data.erro || resumoData.erro || "Erro ao carregar histórico.";
-                    historicoBody.innerHTML = `<tr><td colspan="5">Não foi possível carregar os dados.</td></tr>`;
+                    historicoBody.innerHTML = `<tr><td colspan="6">Não foi possível carregar os dados.</td></tr>`;
                     return;
                 }
 
@@ -138,7 +145,7 @@
                 const links = data.links || [];
 
                 if (!links.length) {
-                    historicoBody.innerHTML = `<tr><td colspan="5">Nenhum link gerado ainda.</td></tr>`;
+                    historicoBody.innerHTML = `<tr><td colspan="6">Nenhum link gerado ainda.</td></tr>`;
                     return;
                 }
 
@@ -155,6 +162,7 @@
                                 ? `<a href="${link.url_afiliado}" target="_blank">${link.url_afiliado}</a>`
                                 : "-"}
                         </td>
+                        <td>${plataformaBadgeHtml(link.plataforma, link.plataforma_label)}</td>
                         <td>${badgeHtml(link.status)}</td>
 
                         <td>R$ ${valorOuTraco(link.valor_cashback)}</td>
@@ -164,7 +172,7 @@
             } catch (e) {
                 mensagem.style.display = "block";
                 mensagem.textContent = "Erro de comunicação com o servidor.";
-                historicoBody.innerHTML = `<tr><td colspan="5">Erro ao carregar histórico.</td></tr>`;
+                historicoBody.innerHTML = `<tr><td colspan="6">Erro ao carregar histórico.</td></tr>`;
             }
         }
 

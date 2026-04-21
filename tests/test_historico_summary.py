@@ -60,19 +60,19 @@ class HistoricoSummaryTests(unittest.TestCase):
         cursor.executemany(
             """
             INSERT INTO links_gerados (
-                usuario_id, job_id, url_original, url_afiliado, status,
+                usuario_id, job_id, url_original, plataforma, url_afiliado, status,
                 percentual_cashback, valor_comissao, valor_cashback,
                 observacoes_admin, criado_em, atualizado_em
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                (self.user1_id, "job-1", "https://a.com/1", "https://af.com/1", "compra_confirmada", 50, 20, 10, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
-                (self.user1_id, "job-2", "https://a.com/2", "https://af.com/2", "compra_confirmada", 50, 30, None, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
-                (self.user1_id, "job-3", "https://a.com/3", "https://af.com/3", "cashback_pago", 50, 16, 8, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
-                (self.user1_id, "job-4", "https://a.com/4", "https://af.com/4", "cashback_pago", 50, 8, None, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
-                (self.user1_id, "job-5", "https://a.com/5", "https://af.com/5", "compra_nao_confirmada", 50, None, 0, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
-                (self.user1_id, "job-6", "https://a.com/6", "https://af.com/6", "aguardando_verificacao", 50, None, 99, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
-                (self.user2_id, "job-7", "https://b.com/1", "https://af.com/x", "compra_confirmada", 50, 100, 50, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
+                (self.user1_id, "job-1", "https://a.com/1", "mercadolivre", "https://af.com/1", "compra_confirmada", 50, 20, 10, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
+                (self.user1_id, "job-2", "https://a.com/2", "mercadolivre", "https://af.com/2", "compra_confirmada", 50, 30, None, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
+                (self.user1_id, "job-3", "https://a.com/3", "shopee", "https://af.com/3", "cashback_pago", 50, 16, 8, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
+                (self.user1_id, "job-4", "https://a.com/4", "shopee", "https://af.com/4", "cashback_pago", 50, 8, None, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
+                (self.user1_id, "job-5", "https://a.com/5", "mercadolivre", "https://af.com/5", "compra_nao_confirmada", 50, None, 0, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
+                (self.user1_id, "job-6", "https://a.com/6", "shopee", "https://af.com/6", "aguardando_verificacao", 50, None, 99, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
+                (self.user2_id, "job-7", "https://b.com/1", "mercadolivre", "https://af.com/x", "compra_confirmada", 50, 100, 50, None, "2026-01-01 00:00:00", "2026-01-01 00:00:00"),
             ],
         )
         conn.commit()
@@ -115,6 +115,9 @@ class HistoricoSummaryTests(unittest.TestCase):
         payload = response.get_json()
         self.assertTrue(payload["ok"])
         self.assertGreaterEqual(len(payload["links"]), 1)
+        plataformas = {item["plataforma_label"] for item in payload["links"]}
+        self.assertIn("Mercado Livre", plataformas)
+        self.assertIn("Shopee", plataformas)
 
     def test_resumo_returns_zero_with_no_links(self):
         self._login("USR002")

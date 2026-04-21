@@ -60,6 +60,21 @@ def create_tables():
     )
     """)
 
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS cadastro_solicitacoes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome_completo TEXT NOT NULL,
+        email TEXT NOT NULL,
+        codigo_indicacao TEXT,
+        whatsapp TEXT,
+        status TEXT NOT NULL DEFAULT 'novo',
+        observacoes_admin TEXT,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL
+    )
+    """)
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS admin_users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,6 +144,36 @@ def ensure_worker_heartbeats_table():
         updated_em TEXT NOT NULL
     )
     """)
+
+    conn.commit()
+    conn.close()
+
+
+
+
+def ensure_cadastro_solicitacoes_table():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS cadastro_solicitacoes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome_completo TEXT NOT NULL,
+        email TEXT NOT NULL,
+        codigo_indicacao TEXT,
+        whatsapp TEXT,
+        status TEXT NOT NULL DEFAULT 'novo',
+        observacoes_admin TEXT,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("PRAGMA table_info(cadastro_solicitacoes)")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+
+    if "whatsapp" not in existing_columns:
+        cursor.execute("ALTER TABLE cadastro_solicitacoes ADD COLUMN whatsapp TEXT")
 
     conn.commit()
     conn.close()
@@ -204,6 +249,7 @@ if __name__ == "__main__":
     ensure_usuarios_password_column()
     ensure_jobs_worker_columns()
     ensure_worker_heartbeats_table()
+    ensure_cadastro_solicitacoes_table()
     create_default_admin()
     create_sample_users()
     print("[OK] Banco inicializado com sucesso.")

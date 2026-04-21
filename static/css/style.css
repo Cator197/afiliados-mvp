@@ -162,3 +162,11 @@ th {
     font-size: 13px;
     color: #666;
 }
+
+.btn-secondary {
+    background: #6b7280;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+}

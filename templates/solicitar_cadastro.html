@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitar cadastro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Solicitar cadastro</h1>
+        <p class="subtitle">Preencha os dados abaixo para análise manual da equipe.</p>
+
+        <div class="input-group">
+            <label for="nome_completo">Nome completo</label>
+            <input type="text" id="nome_completo" placeholder="Seu nome completo">
+        </div>
+
+        <div class="input-group">
+            <label for="email">Email</label>
+            <input type="text" id="email" placeholder="seuemail@exemplo.com">
+        </div>
+
+        <div class="input-group">
+            <label for="codigo_indicacao">Código de indicação (opcional)</label>
+            <input type="text" id="codigo_indicacao" placeholder="Ex: CAIO001">
+        </div>
+
+        <div class="actions">
+            <button id="btnEnviar">Enviar solicitação</button>
+            <a href="{{ url_for('pagina_inicial') }}" class="btn btn-secondary">Voltar ao login</a>
+        </div>
+
+        <div id="mensagem" class="message-box" style="display:none;"></div>
+    </div>
+
+    <script>
+        const btnEnviar = document.getElementById("btnEnviar");
+        const inputNome = document.getElementById("nome_completo");
+        const inputEmail = document.getElementById("email");
+        const inputCodigo = document.getElementById("codigo_indicacao");
+        const mensagem = document.getElementById("mensagem");
+
+        function mostrarMensagem(texto, erro = false) {
+            mensagem.style.display = "block";
+            mensagem.textContent = texto;
+            mensagem.style.borderColor = erro ? "#f0b7b7" : "#e4e8ee";
+            mensagem.style.background = erro ? "#fff3f3" : "#f7f8fa";
+        }
+
+        btnEnviar.addEventListener("click", async () => {
+            const nome_completo = inputNome.value.trim();
+            const email = inputEmail.value.trim();
+            const codigo_indicacao = inputCodigo.value.trim();
+
+            if (!nome_completo) {
+                mostrarMensagem("Informe seu nome completo.", true);
+                return;
+            }
+
+            if (!email) {
+                mostrarMensagem("Informe seu email.", true);
+                return;
+            }
+
+            btnEnviar.disabled = true;
+            mostrarMensagem("Enviando solicitação...");
+
+            try {
+                const resp = await fetch("/api/solicitar-cadastro", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ nome_completo, email, codigo_indicacao })
+                });
+
+                const data = await resp.json();
+
+                if (!data.ok) {
+                    mostrarMensagem(data.erro || "Não foi possível enviar sua solicitação.", true);
+                    return;
+                }
+
+                mostrarMensagem(data.message || "Solicitação enviada com sucesso.");
+                inputNome.value = "";
+                inputEmail.value = "";
+                inputCodigo.value = "";
+            } catch (e) {
+                mostrarMensagem("Erro de comunicação com o servidor.", true);
+            } finally {
+                btnEnviar.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

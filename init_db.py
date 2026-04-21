@@ -38,6 +38,8 @@ def create_tables():
         criado_em TEXT NOT NULL,
         iniciado_em TEXT,
         finalizado_em TEXT,
+        assigned_worker_id TEXT,
+        claimed_em TEXT,
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
     )
     """)
@@ -70,6 +72,25 @@ def create_tables():
         criado_em TEXT NOT NULL
     )
     """)
+
+    conn.commit()
+    conn.close()
+
+
+
+
+def ensure_jobs_worker_columns():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("PRAGMA table_info(jobs)")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+
+    if "assigned_worker_id" not in existing_columns:
+        cursor.execute("ALTER TABLE jobs ADD COLUMN assigned_worker_id TEXT")
+
+    if "claimed_em" not in existing_columns:
+        cursor.execute("ALTER TABLE jobs ADD COLUMN claimed_em TEXT")
 
     conn.commit()
     conn.close()
@@ -138,6 +159,7 @@ def create_sample_users():
 if __name__ == "__main__":
     ensure_directories()
     create_tables()
+    ensure_jobs_worker_columns()
     create_default_admin()
     create_sample_users()
     print("[OK] Banco inicializado com sucesso.")

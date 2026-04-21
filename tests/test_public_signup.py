@@ -55,6 +55,10 @@ class PublicSignupTests(unittest.TestCase):
     def setUp(self):
         self.client = self.app.test_client()
 
+        import app as app_module
+
+        app_module._last_signup_attempt_by_email.clear()
+
     def _extract_csrf_token(self, html):
         match = re.search(r'name="csrf_token" value="([^"]+)"', html)
         self.assertIsNotNone(match)
@@ -90,6 +94,43 @@ class PublicSignupTests(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["status"], "novo")
         self.assertEqual(row["email"], "pessoa@example.com")
+
+    def test_post_signup_deduplicacao_email_com_status_ativo(self):
+        self._criar_solicitacao("Pessoa Existente", "duplicado@example.com", status="em_analise")
+
+        response = self.client.post(
+            "/api/solicitar-cadastro",
+            json={
+                "nome_completo": "Pessoa Nova",
+                "email": "duplicado@example.com",
+                "codigo_indicacao": "CAIO001",
+            },
+        )
+
+        self.assertEqual(response.status_code, 409)
+        payload = response.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["erro"], "Já existe solicitação em análise")
+
+    def test_post_signup_rate_limit_por_email(self):
+        import app as app_module
+        from datetime import datetime
+
+        app_module._last_signup_attempt_by_email["rate-limited@example.com"] = datetime.now()
+
+        response = self.client.post(
+            "/api/solicitar-cadastro",
+            json={
+                "nome_completo": "Pessoa RL",
+                "email": "rate-limited@example.com",
+                "codigo_indicacao": "CAIO001",
+            },
+        )
+
+        self.assertEqual(response.status_code, 429)
+        payload = response.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["erro"], "Tente novamente mais tarde")
 
     def test_post_signup_invalid(self):
         response = self.client.post(

@@ -104,3 +104,24 @@ def update_cadastro_solicitacao_status(solicitacao_id, status=None, observacoes_
     conn.close()
 
     return rows_updated
+
+
+def get_cadastro_solicitacao_ativa_by_email(email):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM cadastro_solicitacoes
+        WHERE email = ?
+          AND status IN ('novo', 'em_analise')
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (email,),
+    )
+    row = cursor.fetchone()
+
+    conn.close()
+    return row

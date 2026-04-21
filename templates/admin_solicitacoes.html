@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitações de cadastro | Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 1400px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div>
+                <h1>Solicitações de cadastro</h1>
+                <p class="subtitle">Logado como {{ admin_username }}</p>
+            </div>
+            <div class="actions">
+                <a class="btn" href="{{ url_for('admin_links') }}">Voltar para links</a>
+                <a class="btn" href="{{ url_for('admin_logout') }}">Sair</a>
+            </div>
+        </div>
+
+        <form method="GET" action="{{ url_for('admin_solicitacoes') }}" class="message-box">
+            <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;">
+                <div class="input-group" style="margin-bottom:0;">
+                    <label for="status">Filtrar por status</label>
+                    <select id="status" name="status">
+                        <option value="">Todos</option>
+                        <option value="novo" {% if filtros.status == 'novo' %}selected{% endif %}>novo</option>
+                        <option value="em_analise" {% if filtros.status == 'em_analise' %}selected{% endif %}>em_analise</option>
+                        <option value="aprovado" {% if filtros.status == 'aprovado' %}selected{% endif %}>aprovado</option>
+                        <option value="rejeitado" {% if filtros.status == 'rejeitado' %}selected{% endif %}>rejeitado</option>
+                    </select>
+                </div>
+
+                <div class="actions" style="margin-top:0;">
+                    <button type="submit">Filtrar</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Data</th>
+                        <th>Nome completo</th>
+                        <th>Email</th>
+                        <th>Código de indicação</th>
+                        <th>WhatsApp</th>
+                        <th>Status</th>
+                        <th>Observações admin</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if solicitacoes %}
+                        {% for solicitacao in solicitacoes %}
+                            <tr>
+                                <form method="POST" action="{{ url_for('admin_atualizar_solicitacao', solicitacao_id=solicitacao.id) }}">
+                                    <td>{{ solicitacao.id }}</td>
+                                    <td>{{ solicitacao.criado_em }}</td>
+                                    <td>{{ solicitacao.nome_completo }}</td>
+                                    <td>{{ solicitacao.email }}</td>
+                                    <td>{{ solicitacao.codigo_indicacao if solicitacao.codigo_indicacao else '-' }}</td>
+                                    <td>{{ solicitacao.whatsapp if solicitacao.whatsapp else '-' }}</td>
+                                    <td style="min-width:180px;">
+                                        <select name="status">
+                                            <option value="novo" {% if solicitacao.status == 'novo' %}selected{% endif %}>novo</option>
+                                            <option value="em_analise" {% if solicitacao.status == 'em_analise' %}selected{% endif %}>em_analise</option>
+                                            <option value="aprovado" {% if solicitacao.status == 'aprovado' %}selected{% endif %}>aprovado</option>
+                                            <option value="rejeitado" {% if solicitacao.status == 'rejeitado' %}selected{% endif %}>rejeitado</option>
+                                        </select>
+                                    </td>
+                                    <td style="min-width:220px;">
+                                        <input type="text" name="observacoes_admin" value="{{ solicitacao.observacoes_admin if solicitacao.observacoes_admin else '' }}" placeholder="Observação">
+                                    </td>
+                                    <td>
+                                        <button type="submit">Salvar</button>
+                                    </td>
+                                </form>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="9">Nenhuma solicitação encontrada.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

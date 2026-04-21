@@ -39,7 +39,12 @@ from repositories.links_repo import (
 )
 from repositories.admin_repo import validate_admin_login
 from repositories.worker_status_repo import upsert_worker_heartbeat, get_worker_status
-from repositories.cadastro_solicitacoes_repo import create_cadastro_solicitacao
+from repositories.cadastro_solicitacoes_repo import (
+    create_cadastro_solicitacao,
+    get_cadastro_solicitacao_by_id,
+    list_cadastro_solicitacoes,
+    update_cadastro_solicitacao_status,
+)
 from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table
 
 from config import DATA_DIR, LOGS_DIR
@@ -165,6 +170,9 @@ def is_valid_mercadolivre_url(url: str) -> bool:
 
 def admin_logado():
     return bool(session.get("admin_logged_in"))
+
+
+CADASTRO_SOLICITACAO_STATUS_VALIDOS = {"novo", "em_analise", "aprovado", "rejeitado"}
 
 
 @app.route("/", methods=["GET"])
@@ -311,6 +319,51 @@ def admin_atualizar_link(link_id):
     )
 
     return redirect(url_for("admin_links", sucesso="1"))
+
+
+@app.route("/admin/solicitacoes", methods=["GET"])
+@login_required_admin
+def admin_solicitacoes():
+    if not admin_logado():
+        return redirect(url_for("admin_login"))
+
+    status = request.args.get("status", "").strip()
+    status_filtro = status if status in CADASTRO_SOLICITACAO_STATUS_VALIDOS else None
+
+    solicitacoes = list_cadastro_solicitacoes(status=status_filtro)
+
+    return render_template(
+        "admin_solicitacoes.html",
+        admin_username=session.get("admin_username"),
+        solicitacoes=solicitacoes,
+        filtros={"status": status_filtro or ""},
+    )
+
+
+@app.route("/admin/solicitacoes/<int:solicitacao_id>/atualizar", methods=["POST"])
+@login_required_admin
+def admin_atualizar_solicitacao(solicitacao_id):
+    if not admin_logado():
+        return redirect(url_for("admin_login"))
+
+    solicitacao = get_cadastro_solicitacao_by_id(solicitacao_id)
+    if not solicitacao:
+        return redirect(url_for("admin_solicitacoes", erro="solicitacao_nao_encontrada"))
+
+    status = request.form.get("status", "").strip()
+    observacoes_admin = request.form.get("observacoes_admin", "")
+
+    if status not in CADASTRO_SOLICITACAO_STATUS_VALIDOS:
+        return redirect(url_for("admin_solicitacoes", erro="status_invalido"))
+
+    update_cadastro_solicitacao_status(
+        solicitacao_id=solicitacao_id,
+        status=status,
+        observacoes_admin=observacoes_admin,
+        atualizado_em=now_str(),
+    )
+
+    return redirect(url_for("admin_solicitacoes", sucesso="1"))
 
 
 @app.route("/health", methods=["GET"])

@@ -3,23 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Entrar com ID</title>
+    <title>Entrar</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
         <h1>Acesse suas promoções com cashback</h1>
         <p class="subtitle">
-            Digite seu ID para gerar links de afiliado e acompanhar seu histórico.
+            Entre com seu código de usuário e senha.
         </p>
 
         <div class="input-group">
-            <label for="codigo_usuario">Seu ID</label>
+            <label for="codigo_usuario">Código do usuário</label>
             <input type="text" id="codigo_usuario" placeholder="Ex: CAIO001">
+        </div>
+
+        <div class="input-group">
+            <label for="senha">Senha</label>
+            <input type="password" id="senha" placeholder="Digite sua senha">
         </div>
 
         <div class="actions">
             <button id="btnEntrar">Entrar</button>
+            <button id="btnEntrarLegado" type="button">Entrar só com código (legado temporário)</button>
         </div>
 
         <div id="mensagem" class="message-box" style="display:none;"></div>
@@ -27,7 +33,9 @@
 
     <script>
         const btnEntrar = document.getElementById("btnEntrar");
+        const btnEntrarLegado = document.getElementById("btnEntrarLegado");
         const inputCodigo = document.getElementById("codigo_usuario");
+        const inputSenha = document.getElementById("senha");
         const mensagem = document.getElementById("mensagem");
 
         function mostrarMensagem(texto, erro = false) {
@@ -37,16 +45,64 @@
             mensagem.style.background = erro ? "#fff3f3" : "#f7f8fa";
         }
 
-        btnEntrar.addEventListener("click", async () => {
+        function obterCodigoUsuario() {
             const codigo_usuario = inputCodigo.value.trim();
-
             if (!codigo_usuario) {
-                mostrarMensagem("Digite seu ID para continuar.", true);
+                mostrarMensagem("Digite seu código de usuário para continuar.", true);
+                return null;
+            }
+            return codigo_usuario;
+        }
+
+        btnEntrar.addEventListener("click", async () => {
+            const codigo_usuario = obterCodigoUsuario();
+            if (!codigo_usuario) {
+                return;
+            }
+
+            const senha = inputSenha.value;
+            if (!senha) {
+                mostrarMensagem("Digite sua senha para continuar.", true);
                 return;
             }
 
             btnEntrar.disabled = true;
-            mostrarMensagem("Validando ID...");
+            btnEntrarLegado.disabled = true;
+            mostrarMensagem("Validando acesso...");
+
+            try {
+                const resp = await fetch("/api/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ codigo_usuario, senha })
+                });
+
+                const data = await resp.json();
+
+                if (data.ok) {
+                    window.location.href = `/usuario/${encodeURIComponent(codigo_usuario)}`;
+                } else {
+                    mostrarMensagem(data.erro || "Não foi possível realizar o login.", true);
+                }
+            } catch (e) {
+                mostrarMensagem("Erro de comunicação com o servidor.", true);
+            } finally {
+                btnEntrar.disabled = false;
+                btnEntrarLegado.disabled = false;
+            }
+        });
+
+        btnEntrarLegado.addEventListener("click", async () => {
+            const codigo_usuario = obterCodigoUsuario();
+            if (!codigo_usuario) {
+                return;
+            }
+
+            btnEntrar.disabled = true;
+            btnEntrarLegado.disabled = true;
+            mostrarMensagem("Validando acesso legado (temporário)...");
 
             try {
                 const resp = await fetch("/api/validar-usuario", {
@@ -62,12 +118,19 @@
                 if (data.ok) {
                     window.location.href = `/usuario/${encodeURIComponent(codigo_usuario)}`;
                 } else {
-                    mostrarMensagem(data.erro || "Não foi possível validar o ID.", true);
+                    mostrarMensagem(data.erro || "Não foi possível validar o código.", true);
                 }
             } catch (e) {
                 mostrarMensagem("Erro de comunicação com o servidor.", true);
             } finally {
                 btnEntrar.disabled = false;
+                btnEntrarLegado.disabled = false;
+            }
+        });
+
+        inputSenha.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                btnEntrar.click();
             }
         });
 

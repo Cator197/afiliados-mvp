@@ -27,7 +27,7 @@ from config import (
     JOB_TIMEOUT_SECONDS,
     WORKER_INACTIVE_THRESHOLD_SECONDS,
 )
-from repositories.usuarios_repo import get_user_by_codigo
+from repositories.usuarios_repo import get_user_by_codigo, get_user_by_codigo_any_status, validate_user_login
 from repositories.jobs_repo import create_job, get_job_by_id, claim_next_job, update_job_status, list_jobs, reclaim_stuck_jobs, get_jobs_status_counts
 from repositories.links_repo import (
     get_links_by_usuario_id,
@@ -81,6 +81,7 @@ ensure_usuarios_password_column()
 ensure_jobs_worker_columns()
 ensure_worker_heartbeats_table()
 
+
 def login_required_admin(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -88,6 +89,19 @@ def login_required_admin(f):
             return redirect(url_for("admin_login"))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def set_user_session(usuario: dict):
+    session["user_logged_in"] = True
+    session["user_id"] = usuario["id"]
+    session["codigo_usuario"] = usuario["codigo_usuario"]
+    session["user_nome"] = usuario["nome"]
+
+
+def clear_user_session():
+    for key in ["user_logged_in", "user_id", "codigo_usuario", "user_nome"]:
+        session.pop(key, None)
+
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -131,6 +145,7 @@ def admin_logado():
 
 
 @app.route("/", methods=["GET"])
+@app.route("/login", methods=["GET"])
 def pagina_inicial():
     return render_template("index.html")
 
@@ -169,6 +184,12 @@ def pagina_historico(codigo_usuario):
     )
 
 
+@app.route("/logout", methods=["GET"])
+def user_logout():
+    clear_user_session()
+    return redirect(url_for("pagina_inicial"))
+
+
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "GET":
@@ -193,7 +214,8 @@ def admin_login():
 
 @app.route("/admin/logout", methods=["GET"])
 def admin_logout():
-    session.clear()
+    session.pop("admin_logged_in", None)
+    session.pop("admin_username", None)
     return redirect(url_for("admin_login"))
 
 
@@ -296,6 +318,36 @@ def validate_worker_request():
 
     return None
 
+@app.route("/api/login", methods=["POST"])
+def login_usuario():
+    data = request.get_json(silent=True) or {}
+    codigo_usuario = data.get("codigo_usuario", "").strip()
+    senha = data.get("senha", "")
+
+    if not codigo_usuario:
+        return jsonify({"ok": False, "erro": "Código do usuário não informado."}), 400
+
+    if not senha:
+        return jsonify({"ok": False, "erro": "Senha não informada."}), 400
+
+    resultado = validate_user_login(codigo_usuario, senha)
+
+    if not resultado["ok"]:
+        return jsonify({"ok": False, "erro": resultado["erro"]}), resultado["status_code"]
+
+    usuario = resultado["usuario"]
+    set_user_session(usuario)
+
+    return jsonify({
+        "ok": True,
+        "usuario": {
+            "id": usuario["id"],
+            "codigo_usuario": usuario["codigo_usuario"],
+            "nome": usuario["nome"],
+        }
+    })
+
+
 @app.route("/api/validar-usuario", methods=["POST"])
 def validar_usuario():
     data = request.get_json(silent=True) or {}
@@ -307,14 +359,23 @@ def validar_usuario():
             "erro": "Código do usuário não informado."
         }), 400
 
+    # FLUXO LEGADO TEMPORÁRIO (PR3): mantido para migração gradual sem senha.
+    # Remoção planejada no PR4 quando proteção por sessão estiver ativa em todo o fluxo.
     usuario = get_user_by_codigo(codigo_usuario)
 
     if not usuario:
+        usuario_existente = get_user_by_codigo_any_status(codigo_usuario)
+
+        if usuario_existente and not usuario_existente["ativo"]:
+            return jsonify({"ok": False, "erro": "Usuário inativo."}), 403
+
         logging.warning(f"Tentativa de acesso com ID inexistente: {codigo_usuario}")
         return jsonify({
             "ok": False,
             "erro": "Usuário não encontrado."
         }), 404
+
+    set_user_session(usuario)
 
     return jsonify({
         "ok": True,

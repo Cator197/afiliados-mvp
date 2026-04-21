@@ -36,6 +36,7 @@ from repositories.links_repo import (
     get_link_by_id,
     update_link_admin_fields,
     create_link_gerado,
+    get_user_history_summary,
 )
 from repositories.admin_repo import validate_admin_login
 from repositories.worker_status_repo import upsert_worker_heartbeat, get_worker_status
@@ -759,6 +760,36 @@ def consultar_job(job_id):
             "iniciado_em": job["iniciado_em"],
             "finalizado_em": job["finalizado_em"]
         }
+    })
+
+
+@app.route("/api/usuario/<codigo_usuario>/resumo", methods=["GET"])
+@login_required_user
+def resumo_links_usuario(codigo_usuario):
+    if session.get("codigo_usuario") != codigo_usuario:
+        return jsonify({
+            "ok": False,
+            "erro": "Acesso negado."
+        }), 403
+
+    usuario = get_user_by_codigo(codigo_usuario)
+
+    if not usuario:
+        return jsonify({
+            "ok": False,
+            "erro": "Usuário não encontrado."
+        }), 404
+
+    summary = get_user_history_summary(usuario["id"])
+
+    return jsonify({
+        "ok": True,
+        "usuario": {
+            "id": usuario["id"],
+            "codigo_usuario": usuario["codigo_usuario"],
+            "nome": usuario["nome"]
+        },
+        "summary": summary
     })
 
 

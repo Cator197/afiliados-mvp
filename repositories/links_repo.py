@@ -115,3 +115,39 @@ def update_link_admin_fields(link_id, status=None, valor_comissao=None,
 
     conn.commit()
     conn.close()
+
+
+def get_user_history_summary(usuario_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            SUM(CASE WHEN status = 'compra_confirmada' THEN 1 ELSE 0 END) AS quantidade_pendente,
+            SUM(CASE WHEN status = 'cashback_pago' THEN 1 ELSE 0 END) AS quantidade_pago,
+            SUM(CASE WHEN status = 'compra_nao_confirmada' THEN 1 ELSE 0 END) AS quantidade_perdido,
+            COALESCE(SUM(CASE WHEN status = 'compra_confirmada' THEN COALESCE(valor_cashback, 0) ELSE 0 END), 0) AS valor_pendente,
+            COALESCE(SUM(CASE WHEN status = 'cashback_pago' THEN COALESCE(valor_cashback, 0) ELSE 0 END), 0) AS valor_pago
+        FROM links_gerados
+        WHERE usuario_id = ?
+    """, (usuario_id,))
+
+    summary = cursor.fetchone()
+    conn.close()
+
+    if not summary:
+        return {
+            "quantidade_pendente": 0,
+            "quantidade_pago": 0,
+            "quantidade_perdido": 0,
+            "valor_pendente": 0,
+            "valor_pago": 0,
+        }
+
+    return {
+        "quantidade_pendente": summary["quantidade_pendente"] or 0,
+        "quantidade_pago": summary["quantidade_pago"] or 0,
+        "quantidade_perdido": summary["quantidade_perdido"] or 0,
+        "valor_pendente": summary["valor_pendente"] or 0,
+        "valor_pago": summary["valor_pago"] or 0,
+    }

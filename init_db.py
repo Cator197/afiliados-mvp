@@ -1,16 +1,12 @@
 from datetime import datetime
-import hashlib
 
 from database import get_connection, ensure_directories
 from config import ADMIN_DEFAULT_USERNAME, ADMIN_DEFAULT_PASSWORD
+from repositories.admin_repo import hash_password
 
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 def create_tables():
@@ -88,7 +84,6 @@ def create_tables():
 
 
 
-
 def ensure_jobs_worker_columns():
     conn = get_connection()
     cursor = conn.cursor()
@@ -125,6 +120,10 @@ def ensure_worker_heartbeats_table():
 
 
 def create_default_admin():
+    if not ADMIN_DEFAULT_USERNAME or not ADMIN_DEFAULT_PASSWORD:
+        print("[INFO] Admin padrão não configurado. Defina ADMIN_DEFAULT_USERNAME e ADMIN_DEFAULT_PASSWORD para bootstrap explícito.")
+        return
+
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -145,9 +144,9 @@ def create_default_admin():
             now_str()
         ))
         conn.commit()
-        print("[OK] Admin padrão criado.")
+        print("[OK] Admin bootstrap criado via variáveis de ambiente.")
     else:
-        print("[INFO] Admin padrão já existe.")
+        print("[INFO] Admin bootstrap já existe.")
 
     conn.close()
 

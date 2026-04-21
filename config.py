@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import secrets
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -8,7 +9,7 @@ DATA_DIR = BASE_DIR / "data"
 LOGS_DIR = BASE_DIR / "logs"
 DB_PATH = DATA_DIR / "afiliados.db"
 
-SECRET_KEY = os.getenv("SECRET_KEY", "trocar_essa_chave_no_futuro")
+SECRET_KEY = (os.getenv("SECRET_KEY") or "").strip() or secrets.token_urlsafe(32)
 
 # 127.0.0.1 permite apenas acesso local; 0.0.0.0 libera acesso externo (ex.: VPS)
 # FLASK_HOST é priorizado para evitar conflito com variáveis globais de ambiente.
@@ -16,8 +17,12 @@ HOST = (os.getenv("FLASK_HOST") or os.getenv("HOST") or "0.0.0.0").strip() or "0
 PORT = int(os.getenv("PORT", "5000"))
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ADMIN_DEFAULT_USERNAME = os.getenv("ADMIN_DEFAULT_USERNAME", "admin")
-ADMIN_DEFAULT_PASSWORD = os.getenv("ADMIN_DEFAULT_PASSWORD", "123456")
+# SESSION_COOKIE_SECURE não deve quebrar dev local (HTTP).
+# Em produção, configure explicitamente SESSION_COOKIE_SECURE=true.
+SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
+
+ADMIN_DEFAULT_USERNAME = os.getenv("ADMIN_DEFAULT_USERNAME", "").strip()
+ADMIN_DEFAULT_PASSWORD = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
 
 CASHBACK_PERCENTUAL_PADRAO = 50.0
 

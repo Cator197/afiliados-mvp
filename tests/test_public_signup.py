@@ -5,6 +5,7 @@ from pathlib import Path
 import config
 from database import get_connection
 from repositories.admin_repo import hash_password
+from werkzeug.security import check_password_hash
 
 
 class PublicSignupTests(unittest.TestCase):
@@ -197,6 +198,98 @@ class PublicSignupTests(unittest.TestCase):
         response = self.client.get("/admin/links")
         self.assertEqual(response.status_code, 200)
         self.assertIn("Painel administrativo", response.get_data(as_text=True))
+
+    def test_criacao_manual_de_usuario_funciona(self):
+        self._login_admin()
+
+        response = self.client.post(
+            "/admin/usuarios/criar",
+            data={
+                "codigo_usuario": "NOVO001",
+                "nome": "Usuário Novo",
+                "senha": "senha-segura",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Usuário criado com sucesso", response.get_data(as_text=True))
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM usuarios WHERE codigo_usuario = ?", ("NOVO001",))
+        row = cursor.fetchone()
+        conn.close()
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row["nome"], "Usuário Novo")
+        self.assertEqual(row["ativo"], 1)
+
+    def test_nao_permite_codigo_duplicado(self):
+        self._login_admin()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            ("DUP001", "Existente", "hash", 1, "2026-01-01 00:00:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.post(
+            "/admin/usuarios/criar",
+            data={
+                "codigo_usuario": "DUP001",
+                "nome": "Outro Nome",
+                "senha": "senha-segura",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Código do usuário já existe", response.get_data(as_text=True))
+
+    def test_senha_salva_com_hash(self):
+        self._login_admin()
+
+        self.client.post(
+            "/admin/usuarios/criar",
+            data={
+                "codigo_usuario": "HASH001",
+                "nome": "Usuário Hash",
+                "senha": "senha123",
+            },
+        )
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT password_hash FROM usuarios WHERE codigo_usuario = ?", ("HASH001",))
+        row = cursor.fetchone()
+        conn.close()
+
+        self.assertIsNotNone(row)
+        self.assertNotEqual(row["password_hash"], "senha123")
+        self.assertTrue(check_password_hash(row["password_hash"], "senha123"))
+
+    def test_aprova_solicitacao_ao_criar_usuario(self):
+        solicitacao_id = self._criar_solicitacao("Pessoa Aprovada", "apr@example.com", status="em_analise")
+        self._login_admin()
+
+        response = self.client.post(
+            "/admin/usuarios/criar",
+            data={
+                "codigo_usuario": "APR001",
+                "nome": "Pessoa Aprovada",
+                "senha": "senha123",
+                "solicitacao_id": str(solicitacao_id),
+                "aprovar_solicitacao": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        from repositories.cadastro_solicitacoes_repo import get_cadastro_solicitacao_by_id
+
+        row = get_cadastro_solicitacao_by_id(solicitacao_id)
+        self.assertEqual(row["status"], "aprovado")
 
 
 if __name__ == "__main__":

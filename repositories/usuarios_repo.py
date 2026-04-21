@@ -47,6 +47,24 @@ def get_user_by_id(user_id: int):
     return row
 
 
+def create_user(codigo_usuario: str, nome: str, password: str, criado_em: str, ativo: int = 1) -> int:
+    password_hash = hash_user_password(password)
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (codigo_usuario, nome, password_hash, ativo, criado_em),
+    )
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return user_id
+
+
 def hash_user_password(password: str) -> str:
     return generate_password_hash(password)
 

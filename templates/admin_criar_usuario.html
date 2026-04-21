@@ -38,6 +38,7 @@
         {% endif %}
 
         <form method="POST" action="{{ url_for('admin_criar_usuario') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             {% if solicitacao %}
                 <input type="hidden" name="solicitacao_id" value="{{ solicitacao.id }}">
             {% endif %}

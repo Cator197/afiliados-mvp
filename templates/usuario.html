@@ -36,7 +36,8 @@
         window.USUARIO = {
             id: {{ usuario.id }},
             codigo_usuario: "{{ usuario.codigo_usuario }}",
-            nome: "{{ usuario.nome }}"
+            nome: "{{ usuario.nome }}",
+            csrf_token: "{{ csrf_token }}"
         };
     </script>
     <script src="{{ url_for('static', filename='js/usuario.js') }}"></script>

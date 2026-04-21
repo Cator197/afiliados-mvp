@@ -66,10 +66,13 @@ class PlatformSupportTests(unittest.TestCase):
         conn.close()
 
     def _login(self):
-        return self.client.post(
+        response = self.client.post(
             "/api/login",
             json={"codigo_usuario": "USR001", "senha": "senha123"},
         )
+        with self.client.session_transaction() as sess:
+            self.csrf_token = sess.get("csrf_token")
+        return response
 
     def test_detect_platform_from_url(self):
         self.assertEqual(
@@ -88,9 +91,9 @@ class PlatformSupportTests(unittest.TestCase):
         response = self.client.post(
             "/api/solicitar-link",
             json={
-                "codigo_usuario": "USR001",
                 "url": "https://www.mercadolivre.com.br/oferta/xpto",
             },
+            headers={"X-CSRF-Token": self.csrf_token},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -114,9 +117,9 @@ class PlatformSupportTests(unittest.TestCase):
         response = self.client.post(
             "/api/solicitar-link",
             json={
-                "codigo_usuario": "USR001",
                 "url": "https://shopee.com.br/produto-teste-i.123.456",
             },
+            headers={"X-CSRF-Token": self.csrf_token},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -137,6 +140,19 @@ class PlatformSupportTests(unittest.TestCase):
         self.assertEqual(row["plataforma"], PLATFORM_SHOPEE)
         self.assertEqual(row["status"], "na_fila")
         self.assertIsNone(row["mensagem_erro"])
+
+    def test_solicitar_link_sem_csrf_retorna_403(self):
+        self._login()
+
+        response = self.client.post(
+            "/api/solicitar-link",
+            json={"url": "https://www.mercadolivre.com.br/oferta/xpto"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        payload = response.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertIn("CSRF", payload["erro"])
 
     def test_legacy_data_remains_compatible_after_platform_migration(self):
         legacy_db = Path(self.tmpdir.name) / "legacy.db"

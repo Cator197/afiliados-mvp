@@ -81,6 +81,7 @@
                         {% for link in links %}
                             <tr class="{% if link.status == 'compra_nao_confirmada' %}row-warning{% elif link.status == 'aguardando_verificacao' %}row-neutral{% endif %}">
                                 <form method="POST" action="{{ url_for('admin_atualizar_link', link_id=link.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <td>{{ link.id }}</td>
                                     <td>{{ link.criado_em }}</td>
                                     <td>

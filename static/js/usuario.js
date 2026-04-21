@@ -126,10 +126,10 @@ async function solicitarGeracao() {
         const resp = await fetch("/api/solicitar-link", {
             method: "POST",
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "X-CSRF-Token": window.USUARIO.csrf_token
             },
             body: JSON.stringify({
-                codigo_usuario: window.USUARIO.codigo_usuario,
                 url: url
             })
         });

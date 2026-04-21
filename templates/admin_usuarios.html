@@ -52,11 +52,13 @@
                                 <td>
                                     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
                                         <form method="POST" action="{{ url_for('admin_atualizar_usuario', user_id=usuario.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <input type="hidden" name="acao" value="toggle_ativo">
                                             <button type="submit">{{ 'Desativar' if usuario.ativo else 'Ativar' }}</button>
                                         </form>
 
                                         <form method="POST" action="{{ url_for('admin_atualizar_usuario', user_id=usuario.id) }}" style="display:flex;gap:8px;align-items:center;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <input type="hidden" name="acao" value="reset_senha">
                                             <input
                                                 type="password"

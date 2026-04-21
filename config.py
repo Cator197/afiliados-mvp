@@ -20,6 +20,7 @@ DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 # SESSION_COOKIE_SECURE não deve quebrar dev local (HTTP).
 # Em produção, configure explicitamente SESSION_COOKIE_SECURE=true.
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
+SESSION_LIFETIME_MINUTES = int(os.getenv("SESSION_LIFETIME_MINUTES", "480"))
 
 ADMIN_DEFAULT_USERNAME = os.getenv("ADMIN_DEFAULT_USERNAME", "").strip()
 ADMIN_DEFAULT_PASSWORD = os.getenv("ADMIN_DEFAULT_PASSWORD", "")

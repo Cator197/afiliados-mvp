@@ -15,6 +15,7 @@ from flask import (
 from config import (
     SECRET_KEY,
     SESSION_COOKIE_SECURE,
+    SESSION_LIFETIME_MINUTES,
     JOB_STATUS_NA_FILA,
     JOB_STATUS_PROCESSANDO,
     JOB_STATUS_CONCLUIDO,
@@ -73,6 +74,7 @@ app.secret_key = SECRET_KEY
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = SESSION_COOKIE_SECURE
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=SESSION_LIFETIME_MINUTES)
 
 
 def configure_logging():
@@ -115,6 +117,48 @@ def login_required_admin(f):
     return decorated_function
 
 
+def get_or_create_csrf_token():
+    token = session.get("csrf_token")
+    if not token:
+        token = uuid.uuid4().hex
+        session["csrf_token"] = token
+    return token
+
+
+def rotate_csrf_token():
+    session["csrf_token"] = uuid.uuid4().hex
+    return session["csrf_token"]
+
+
+def csrf_error_response():
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "erro": "CSRF token inválido ou ausente."}), 403
+    return redirect(url_for("admin_login", erro="csrf"))
+
+
+def validate_csrf_token():
+    expected = session.get("csrf_token", "")
+    provided = (
+        request.form.get("csrf_token", "").strip()
+        or request.headers.get("X-CSRF-Token", "").strip()
+    )
+    return bool(expected) and provided == expected
+
+
+def csrf_protected(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not validate_csrf_token():
+            return csrf_error_response()
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.context_processor
+def inject_csrf_token():
+    return {"csrf_token": get_or_create_csrf_token()}
+
+
 def login_required_user(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -129,10 +173,12 @@ def login_required_user(f):
 
 
 def set_user_session(usuario: dict):
+    session.permanent = True
     session["user_logged_in"] = True
     session["user_id"] = usuario["id"]
     session["codigo_usuario"] = usuario["codigo_usuario"]
     session["user_nome"] = usuario["nome"]
+    rotate_csrf_token()
 
 
 def clear_user_session():
@@ -236,7 +282,12 @@ def user_logout():
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "GET":
-        return render_template("admin_login.html")
+        erro = request.args.get("erro", "").strip()
+        erro_msg = "Sessão inválida. Atualize a página e tente novamente." if erro == "csrf" else None
+        return render_template("admin_login.html", erro=erro_msg)
+
+    if not validate_csrf_token():
+        return csrf_error_response()
 
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "").strip()
@@ -251,6 +302,8 @@ def admin_login():
 
     session["admin_logged_in"] = True
     session["admin_username"] = admin["username"]
+    session.permanent = True
+    rotate_csrf_token()
 
     return redirect(url_for("admin_links"))
 
@@ -289,6 +342,7 @@ def admin_links():
 
 @app.route("/admin/links/<int:link_id>/atualizar", methods=["POST"])
 @login_required_admin
+@csrf_protected
 def admin_atualizar_link(link_id):
     if not admin_logado():
         return redirect(url_for("admin_login"))
@@ -357,6 +411,7 @@ def admin_solicitacoes():
 
 @app.route("/admin/solicitacoes/<int:solicitacao_id>/atualizar", methods=["POST"])
 @login_required_admin
+@csrf_protected
 def admin_atualizar_solicitacao(solicitacao_id):
     if not admin_logado():
         return redirect(url_for("admin_login"))
@@ -410,6 +465,9 @@ def admin_criar_usuario():
             erro=None,
             sucesso=None,
         )
+
+    if not validate_csrf_token():
+        return csrf_error_response()
 
     codigo_usuario = request.form.get("codigo_usuario", "").strip().upper()
     nome = request.form.get("nome", "").strip()
@@ -489,6 +547,7 @@ def admin_usuarios():
 
 @app.route("/admin/usuarios/<int:user_id>/atualizar", methods=["POST"])
 @login_required_admin
+@csrf_protected
 def admin_atualizar_usuario(user_id):
     if not admin_logado():
         return redirect(url_for("admin_login"))
@@ -637,17 +696,11 @@ def solicitar_cadastro_publico():
 
 @app.route("/api/solicitar-link", methods=["POST"])
 @login_required_user
+@csrf_protected
 def solicitar_link():
     data = request.get_json(silent=True) or {}
 
-    codigo_usuario = data.get("codigo_usuario", "").strip()
     url = data.get("url", "").strip()
-
-    if not codigo_usuario:
-        return jsonify({
-            "ok": False,
-            "erro": "Código do usuário não informado."
-        }), 400
 
     if not url:
         return jsonify({
@@ -662,13 +715,8 @@ def solicitar_link():
             "erro": "A URL informada não pertence a uma plataforma suportada."
         }), 400
 
-    if session.get("codigo_usuario") != codigo_usuario:
-        return jsonify({
-            "ok": False,
-            "erro": "Não autorizado para este usuário."
-        }), 403
-
-    usuario = get_user_by_codigo(codigo_usuario)
+    usuario_id = session.get("user_id")
+    usuario = get_user_by_id(usuario_id) if usuario_id else None
     if not usuario:
         return jsonify({
             "ok": False,
@@ -679,7 +727,7 @@ def solicitar_link():
     app.logger.info(
         "[JOB %s] Recebida solicitação de geração de link | usuario=%s | url=%s",
         job_id,
-        codigo_usuario,
+        usuario["codigo_usuario"],
         url,
     )
 

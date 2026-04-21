@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criar usuário | Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 760px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div>
+                <h1>Criar usuário</h1>
+                <p class="subtitle">Logado como {{ admin_username }}</p>
+            </div>
+            <div class="actions">
+                <a class="btn" href="{{ url_for('admin_links') }}">Voltar para links</a>
+                <a class="btn" href="{{ url_for('admin_solicitacoes') }}">Solicitações</a>
+            </div>
+        </div>
+
+        {% if solicitacao %}
+            <div class="message-box" style="background:#f7f8fa;">
+                <strong>Solicitação vinculada #{{ solicitacao.id }}</strong><br>
+                Nome: {{ solicitacao.nome_completo }}<br>
+                Email: {{ solicitacao.email }}<br>
+                Status atual: {{ solicitacao.status }}
+            </div>
+        {% endif %}
+
+        {% if erro %}
+            <div class="message-box" style="background:#fff3f3;border-color:#f0b7b7;">{{ erro }}</div>
+        {% endif %}
+
+        {% if sucesso %}
+            <div class="message-box" style="background:#e6f7ea;border-color:#b6e3c1;">{{ sucesso }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('admin_criar_usuario') }}">
+            {% if solicitacao %}
+                <input type="hidden" name="solicitacao_id" value="{{ solicitacao.id }}">
+            {% endif %}
+
+            <div class="input-group">
+                <label for="codigo_usuario">Código do usuário</label>
+                <input type="text" id="codigo_usuario" name="codigo_usuario" required value="{{ valores.codigo_usuario }}">
+            </div>
+
+            <div class="input-group">
+                <label for="nome">Nome</label>
+                <input type="text" id="nome" name="nome" required value="{{ valores.nome }}">
+            </div>
+
+            <div class="input-group">
+                <label for="senha">Senha inicial</label>
+                <input type="password" id="senha" name="senha" required minlength="6" placeholder="Mínimo de 6 caracteres">
+            </div>
+
+            {% if solicitacao %}
+                <div class="input-group" style="display:flex;gap:8px;align-items:center;">
+                    <input type="checkbox" id="aprovar_solicitacao" name="aprovar_solicitacao" {% if valores.aprovar_solicitacao %}checked{% endif %}>
+                    <label for="aprovar_solicitacao" style="margin:0;">Marcar solicitação como aprovado ao criar usuário</label>
+                </div>
+            {% endif %}
+
+            <div class="actions">
+                <button type="submit">Criar usuário</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

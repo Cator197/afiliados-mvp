@@ -14,6 +14,7 @@
                 <p class="subtitle">Logado como {{ admin_username }}</p>
             </div>
             <div class="actions">
+                <a class="btn" href="{{ url_for('admin_criar_usuario') }}">Criar usuário</a>
                 <a class="btn" href="{{ url_for('admin_links') }}">Voltar para links</a>
                 <a class="btn" href="{{ url_for('admin_logout') }}">Sair</a>
             </div>
@@ -77,6 +78,7 @@
                                     </td>
                                     <td>
                                         <button type="submit">Salvar</button>
+                                        <a class="btn" href="{{ url_for('admin_criar_usuario', solicitacao_id=solicitacao.id) }}">Criar usuário</a>
                                     </td>
                                 </form>
                             </tr>

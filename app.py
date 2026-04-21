@@ -26,7 +26,7 @@ from config import (
     JOB_TIMEOUT_SECONDS,
     WORKER_INACTIVE_THRESHOLD_SECONDS,
 )
-from repositories.usuarios_repo import get_user_by_codigo, validate_user_login
+from repositories.usuarios_repo import create_user, get_user_by_codigo, get_user_by_codigo_any_status, validate_user_login
 from repositories.jobs_repo import create_job, get_job_by_id, claim_next_job, update_job_status, list_jobs, reclaim_stuck_jobs, get_jobs_status_counts
 from repositories.links_repo import (
     get_links_by_usuario_id,
@@ -174,6 +174,7 @@ def admin_logado():
 
 
 CADASTRO_SOLICITACAO_STATUS_VALIDOS = {"novo", "em_analise", "aprovado", "rejeitado"}
+MIN_USER_PASSWORD_LENGTH = 6
 
 
 @app.route("/", methods=["GET"])
@@ -368,6 +369,97 @@ def admin_atualizar_solicitacao(solicitacao_id):
     )
 
     return redirect(url_for("admin_solicitacoes", sucesso="1"))
+
+
+@app.route("/admin/usuarios/criar", methods=["GET", "POST"])
+@login_required_admin
+def admin_criar_usuario():
+    if not admin_logado():
+        return redirect(url_for("admin_login"))
+
+    solicitacao_id_raw = request.values.get("solicitacao_id", "").strip()
+    solicitacao = None
+    if solicitacao_id_raw.isdigit():
+        solicitacao = get_cadastro_solicitacao_by_id(int(solicitacao_id_raw))
+
+    if request.method == "GET":
+        nome_prefill = request.args.get("nome", "").strip()
+        if solicitacao and not nome_prefill:
+            nome_prefill = (solicitacao["nome_completo"] or "").strip()
+
+        return render_template(
+            "admin_criar_usuario.html",
+            admin_username=session.get("admin_username"),
+            solicitacao=solicitacao,
+            valores={
+                "codigo_usuario": request.args.get("codigo_usuario", "").strip(),
+                "nome": nome_prefill,
+                "senha": "",
+                "aprovar_solicitacao": request.args.get("aprovar_solicitacao", "").strip() == "1",
+            },
+            erro=None,
+            sucesso=None,
+        )
+
+    codigo_usuario = request.form.get("codigo_usuario", "").strip().upper()
+    nome = request.form.get("nome", "").strip()
+    senha = request.form.get("senha", "")
+    aprovar_solicitacao = request.form.get("aprovar_solicitacao") == "on"
+
+    erro = None
+
+    if not nome:
+        erro = "Nome é obrigatório."
+    elif not codigo_usuario:
+        erro = "Código do usuário é obrigatório."
+    elif get_user_by_codigo_any_status(codigo_usuario):
+        erro = "Código do usuário já existe."
+    elif len(senha) < MIN_USER_PASSWORD_LENGTH:
+        erro = f"A senha deve ter no mínimo {MIN_USER_PASSWORD_LENGTH} caracteres."
+
+    if erro:
+        return render_template(
+            "admin_criar_usuario.html",
+            admin_username=session.get("admin_username"),
+            solicitacao=solicitacao,
+            valores={
+                "codigo_usuario": codigo_usuario,
+                "nome": nome,
+                "senha": "",
+                "aprovar_solicitacao": aprovar_solicitacao,
+            },
+            erro=erro,
+            sucesso=None,
+        ), 400
+
+    create_user(
+        codigo_usuario=codigo_usuario,
+        nome=nome,
+        password=senha,
+        ativo=1,
+        criado_em=now_str(),
+    )
+
+    if solicitacao and aprovar_solicitacao:
+        update_cadastro_solicitacao_status(
+            solicitacao_id=solicitacao["id"],
+            status="aprovado",
+            atualizado_em=now_str(),
+        )
+
+    return render_template(
+        "admin_criar_usuario.html",
+        admin_username=session.get("admin_username"),
+        solicitacao=solicitacao,
+        valores={
+            "codigo_usuario": "",
+            "nome": "",
+            "senha": "",
+            "aprovar_solicitacao": False,
+        },
+        erro=None,
+        sucesso="Usuário criado com sucesso.",
+    )
 
 
 @app.route("/health", methods=["GET"])

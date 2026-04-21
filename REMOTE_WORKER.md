@@ -1,4 +1,17 @@
-# Worker local (PR 2 - modelo híbrido)
+# Worker local (PR 3 - modelo híbrido desacoplado)
+
+## Arquitetura oficial após PR 3
+- **VPS**: API + banco + frontend + controle de status/jobs.
+- **Worker local/remoto**: único componente que roda Selenium/Chrome para gerar link.
+- A VPS **não** processa Selenium localmente e **não** usa fila em memória (`queue.Queue`) no fluxo produtivo.
+- Fluxo oficial de processamento:
+  1. Usuário cria job via `POST /api/solicitar-link` (status inicial `na_fila`).
+  2. Worker busca job via `POST /api/worker/jobs/claim`.
+  3. Worker finaliza via `POST /api/worker/jobs/<job_id>/success` ou `POST /api/worker/jobs/<job_id>/error`.
+
+## Requisito operacional
+- O worker local/remoto é obrigatório para processar jobs.
+- Se nenhum worker estiver ativo, os jobs permanecem em `na_fila` até alguém claimar.
 
 ## Como iniciar
 1. Configure as variáveis de ambiente no PC local:

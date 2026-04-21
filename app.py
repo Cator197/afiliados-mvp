@@ -15,6 +15,7 @@ from config import (
     SECRET_KEY,
     DOMINIOS_PERMITIDOS,
     JOB_STATUS_NA_FILA,
+    JOB_STATUS_PROCESSANDO,
     JOB_STATUS_CONCLUIDO,
     JOB_STATUS_ERRO,
     LINK_STATUS_AGUARDANDO_VERIFICACAO,
@@ -23,7 +24,7 @@ from config import (
     WORKER_ENABLED,
 )
 from repositories.usuarios_repo import get_user_by_codigo
-from repositories.jobs_repo import create_job, get_job_by_id, claim_next_job, update_job_status
+from repositories.jobs_repo import create_job, get_job_by_id, claim_next_job, update_job_status, list_jobs
 from repositories.links_repo import (
     get_links_by_usuario_id,
     get_all_links,
@@ -32,7 +33,6 @@ from repositories.links_repo import (
     create_link_gerado,
 )
 from repositories.admin_repo import validate_admin_login
-from bot_manager import get_bot_status
 from init_db import ensure_jobs_worker_columns
 
 from config import DATA_DIR, LOGS_DIR
@@ -339,6 +339,10 @@ def solicitar_link():
         criado_em=now_str()
     )
     app.logger.info("[JOB %s] Job persistido com status inicial '%s'.", job_id, JOB_STATUS_NA_FILA)
+    app.logger.info(
+        "[JOB %s] Job aguardando claim do worker remoto em /api/worker/jobs/claim.",
+        job_id,
+    )
 
     return jsonify({
         "ok": True,
@@ -362,7 +366,14 @@ def worker_claim_job():
     job = claim_next_job(worker_id=worker_id, claimed_em=now_str())
 
     if not job:
+        app.logger.info("[WORKER %s] Nenhum job disponível para claim no momento.", worker_id)
         return jsonify({"ok": True, "job": None})
+
+    app.logger.info(
+        "[JOB %s] Claim efetuado com sucesso pelo worker remoto '%s'.",
+        job["id"],
+        worker_id,
+    )
 
     return jsonify({
         "ok": True,
@@ -401,6 +412,7 @@ def worker_job_success(job_id):
         resultado_link=url_afiliado,
         mensagem_erro="",
     )
+    app.logger.info("[JOB %s] Success recebido do worker remoto.", job_id)
 
     create_link_gerado(
         usuario_id=job["usuario_id"],
@@ -412,6 +424,7 @@ def worker_job_success(job_id):
         criado_em=now_str(),
         atualizado_em=now_str(),
     )
+    app.logger.info("[JOB %s] Link afiliado persistido e job concluído.", job_id)
 
     return jsonify({"ok": True, "job_id": job_id, "status": JOB_STATUS_CONCLUIDO})
 
@@ -438,6 +451,7 @@ def worker_job_error(job_id):
         finalizado_em=now_str(),
         mensagem_erro=mensagem_erro,
     )
+    app.logger.info("[JOB %s] Error recebido do worker remoto: %s", job_id, mensagem_erro)
 
     return jsonify({"ok": True, "job_id": job_id, "status": JOB_STATUS_ERRO})
 
@@ -513,9 +527,30 @@ def api_bot_status():
             "erro": "Não autorizado."
         }), 401
 
+    jobs = list_jobs()
+    jobs_na_fila = sum(1 for job in jobs if job["status"] == JOB_STATUS_NA_FILA)
+    jobs_processando = sum(1 for job in jobs if job["status"] == JOB_STATUS_PROCESSANDO)
+
+    if not WORKER_ENABLED:
+        status = "erro_recuperacao"
+        message = "Worker remoto desabilitado na VPS (WORKER_ENABLED=false)."
+    elif jobs_processando > 0:
+        status = "online"
+        message = "Modo remoto ativo. Há job(s) em processamento por worker remoto."
+    else:
+        status = "aguardando_login_manual" if jobs_na_fila > 0 else "online"
+        message = (
+            f"Modo remoto ativo. Jobs aguardando worker remoto: {jobs_na_fila}."
+            if jobs_na_fila > 0
+            else "Modo remoto ativo. Aguardando novos jobs."
+        )
+
     return jsonify({
         "ok": True,
-        "bot": get_bot_status()
+        "bot": {
+            "status": status,
+            "message": message,
+        }
     })
 
 if __name__ == "__main__":

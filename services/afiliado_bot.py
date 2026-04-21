@@ -57,8 +57,8 @@ class AfiliadoBot:
             return True
         return False
 
-    def _validacao_bloqueada_por_login_manual(self) -> bool:
-        if self._aguardando_login_manual:
+    def _validacao_bloqueada_por_login_manual(self, force_check: bool = False) -> bool:
+        if self._aguardando_login_manual and not force_check:
             logger.info("[BOT] validação ignorada: aguardando login manual")
             return True
         return False
@@ -162,8 +162,8 @@ class AfiliadoBot:
         )
         self.abrir_portal()
 
-    def esta_logado(self) -> bool:
-        if self._validacao_bloqueada_por_login_manual():
+    def esta_logado(self, force_check: bool = False) -> bool:
+        if self._validacao_bloqueada_por_login_manual(force_check=force_check):
             return False
 
         logger.info("[BOT FLOW] Etapa: verificar se sessão está autenticada.")
@@ -174,8 +174,8 @@ class AfiliadoBot:
             self._set_aguardando_login_manual(False)
         return autenticado
 
-    def portal_pronto(self) -> bool:
-        if self._validacao_bloqueada_por_login_manual():
+    def portal_pronto(self, force_check: bool = False) -> bool:
+        if self._validacao_bloqueada_por_login_manual(force_check=force_check):
             return False
 
         try:

@@ -17,11 +17,13 @@ class HistoricoSummaryTests(unittest.TestCase):
         config.LOGS_DIR = temp_data_dir / "logs"
         config.DB_PATH = temp_data_dir / "afiliados_test.db"
 
-        from init_db import create_tables, ensure_usuarios_password_column, ensure_jobs_worker_columns, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table
+        from init_db import create_tables, ensure_usuarios_password_column, ensure_jobs_worker_columns, ensure_jobs_platform_column, ensure_links_platform_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table
 
         create_tables()
         ensure_usuarios_password_column()
         ensure_jobs_worker_columns()
+        ensure_jobs_platform_column()
+        ensure_links_platform_column()
         ensure_worker_heartbeats_table()
         ensure_cadastro_solicitacoes_table()
 

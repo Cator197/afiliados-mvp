@@ -1,21 +1,22 @@
 from database import get_connection
 
 
-def create_link_gerado(usuario_id, job_id, url_original, url_afiliado,
+def create_link_gerado(usuario_id, job_id, url_original, plataforma, url_afiliado,
                        status, percentual_cashback, criado_em, atualizado_em):
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
         INSERT INTO links_gerados (
-            usuario_id, job_id, url_original, url_afiliado, status,
+            usuario_id, job_id, url_original, plataforma, url_afiliado, status,
             percentual_cashback, criado_em, atualizado_em
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         usuario_id,
         job_id,
         url_original,
+        plataforma,
         url_afiliado,
         status,
         percentual_cashback,

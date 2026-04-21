@@ -43,9 +43,13 @@ def process_job(job_data: dict):
     job_id = job_data["job_id"]
     usuario_id = job_data["usuario_id"]
     url_original = job_data["url_original"]
+    plataforma = (job_data.get("plataforma") or "mercadolivre").strip().lower()
 
     try:
         logger.info("[JOB %s] Iniciando processamento do job.", job_id)
+
+        if plataforma != "mercadolivre":
+            raise RuntimeError(f"Plataforma '{plataforma}' ainda não suportada no worker local.")
 
         _update_job_status_com_log(
             job_id=job_id,
@@ -95,6 +99,7 @@ def process_job(job_data: dict):
             usuario_id=usuario_id,
             job_id=job_id,
             url_original=url_original,
+            plataforma=plataforma,
             url_afiliado=link_afiliado,
             status=LINK_STATUS_AGUARDANDO_VERIFICACAO,
             percentual_cashback=CASHBACK_PERCENTUAL_PADRAO,

@@ -24,6 +24,7 @@ create_job(
     job_id=job_id,
     usuario_id=usuario["id"],
     url_original=url_original,
+    plataforma="mercadolivre",
     status=JOB_STATUS_NA_FILA,
     criado_em=now_str()
 )
@@ -31,7 +32,8 @@ create_job(
 enqueue_job({
     "job_id": job_id,
     "usuario_id": usuario["id"],
-    "url_original": url_original
+    "url_original": url_original,
+    "plataforma": "mercadolivre",
 })
 
 print(f"Job enviado para fila: {job_id}")

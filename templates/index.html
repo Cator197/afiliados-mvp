@@ -25,7 +25,6 @@
 
         <div class="actions">
             <button id="btnEntrar">Entrar</button>
-            <button id="btnEntrarLegado" type="button">Entrar só com código (legado temporário)</button>
         </div>
 
         <div id="mensagem" class="message-box" style="display:none;"></div>
@@ -33,7 +32,6 @@
 
     <script>
         const btnEntrar = document.getElementById("btnEntrar");
-        const btnEntrarLegado = document.getElementById("btnEntrarLegado");
         const inputCodigo = document.getElementById("codigo_usuario");
         const inputSenha = document.getElementById("senha");
         const mensagem = document.getElementById("mensagem");
@@ -67,7 +65,6 @@
             }
 
             btnEntrar.disabled = true;
-            btnEntrarLegado.disabled = true;
             mostrarMensagem("Validando acesso...");
 
             try {
@@ -90,41 +87,6 @@
                 mostrarMensagem("Erro de comunicação com o servidor.", true);
             } finally {
                 btnEntrar.disabled = false;
-                btnEntrarLegado.disabled = false;
-            }
-        });
-
-        btnEntrarLegado.addEventListener("click", async () => {
-            const codigo_usuario = obterCodigoUsuario();
-            if (!codigo_usuario) {
-                return;
-            }
-
-            btnEntrar.disabled = true;
-            btnEntrarLegado.disabled = true;
-            mostrarMensagem("Validando acesso legado (temporário)...");
-
-            try {
-                const resp = await fetch("/api/validar-usuario", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({ codigo_usuario })
-                });
-
-                const data = await resp.json();
-
-                if (data.ok) {
-                    window.location.href = `/usuario/${encodeURIComponent(codigo_usuario)}`;
-                } else {
-                    mostrarMensagem(data.erro || "Não foi possível validar o código.", true);
-                }
-            } catch (e) {
-                mostrarMensagem("Erro de comunicação com o servidor.", true);
-            } finally {
-                btnEntrar.disabled = false;
-                btnEntrarLegado.disabled = false;
             }
         });
 

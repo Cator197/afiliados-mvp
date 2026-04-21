@@ -27,7 +27,7 @@ from config import (
     JOB_TIMEOUT_SECONDS,
     WORKER_INACTIVE_THRESHOLD_SECONDS,
 )
-from repositories.usuarios_repo import get_user_by_codigo, get_user_by_codigo_any_status, validate_user_login
+from repositories.usuarios_repo import get_user_by_codigo, validate_user_login
 from repositories.jobs_repo import create_job, get_job_by_id, claim_next_job, update_job_status, list_jobs, reclaim_stuck_jobs, get_jobs_status_counts
 from repositories.links_repo import (
     get_links_by_usuario_id,
@@ -91,6 +91,19 @@ def login_required_admin(f):
     return decorated_function
 
 
+def login_required_user(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("user_logged_in"):
+            return f(*args, **kwargs)
+
+        if request.path.startswith("/api/"):
+            return jsonify({"ok": False, "erro": "Sessão inválida ou expirada."}), 401
+
+        return redirect(url_for("pagina_inicial"))
+    return decorated_function
+
+
 def set_user_session(usuario: dict):
     session["user_logged_in"] = True
     session["user_id"] = usuario["id"]
@@ -151,36 +164,36 @@ def pagina_inicial():
 
 
 @app.route("/usuario/<codigo_usuario>", methods=["GET"])
+@login_required_user
 def pagina_usuario(codigo_usuario):
-    usuario = get_user_by_codigo(codigo_usuario)
-
-    if not usuario:
+    if session.get("codigo_usuario") != codigo_usuario:
         return redirect(url_for("pagina_inicial"))
+    usuario = {
+        "id": session.get("user_id"),
+        "codigo_usuario": session.get("codigo_usuario"),
+        "nome": session.get("user_nome"),
+    }
 
     return render_template(
         "usuario.html",
-        usuario={
-            "id": usuario["id"],
-            "codigo_usuario": usuario["codigo_usuario"],
-            "nome": usuario["nome"]
-        }
+        usuario=usuario
     )
 
 
 @app.route("/historico/<codigo_usuario>", methods=["GET"])
+@login_required_user
 def pagina_historico(codigo_usuario):
-    usuario = get_user_by_codigo(codigo_usuario)
-
-    if not usuario:
+    if session.get("codigo_usuario") != codigo_usuario:
         return redirect(url_for("pagina_inicial"))
+    usuario = {
+        "id": session.get("user_id"),
+        "codigo_usuario": session.get("codigo_usuario"),
+        "nome": session.get("user_nome"),
+    }
 
     return render_template(
         "historico.html",
-        usuario={
-            "id": usuario["id"],
-            "codigo_usuario": usuario["codigo_usuario"],
-            "nome": usuario["nome"]
-        }
+        usuario=usuario
     )
 
 
@@ -350,44 +363,14 @@ def login_usuario():
 
 @app.route("/api/validar-usuario", methods=["POST"])
 def validar_usuario():
-    data = request.get_json(silent=True) or {}
-    codigo_usuario = data.get("codigo_usuario", "").strip()
-
-    if not codigo_usuario:
-        return jsonify({
-            "ok": False,
-            "erro": "Código do usuário não informado."
-        }), 400
-
-    # FLUXO LEGADO TEMPORÁRIO (PR3): mantido para migração gradual sem senha.
-    # Remoção planejada no PR4 quando proteção por sessão estiver ativa em todo o fluxo.
-    usuario = get_user_by_codigo(codigo_usuario)
-
-    if not usuario:
-        usuario_existente = get_user_by_codigo_any_status(codigo_usuario)
-
-        if usuario_existente and not usuario_existente["ativo"]:
-            return jsonify({"ok": False, "erro": "Usuário inativo."}), 403
-
-        logging.warning(f"Tentativa de acesso com ID inexistente: {codigo_usuario}")
-        return jsonify({
-            "ok": False,
-            "erro": "Usuário não encontrado."
-        }), 404
-
-    set_user_session(usuario)
-
     return jsonify({
-        "ok": True,
-        "usuario": {
-            "id": usuario["id"],
-            "codigo_usuario": usuario["codigo_usuario"],
-            "nome": usuario["nome"]
-        }
-    })
+        "ok": False,
+        "erro": "Fluxo legado desativado. Utilize /api/login com código e senha."
+    }), 410
 
 
 @app.route("/api/solicitar-link", methods=["POST"])
+@login_required_user
 def solicitar_link():
     data = request.get_json(silent=True) or {}
 
@@ -411,6 +394,12 @@ def solicitar_link():
             "ok": False,
             "erro": "A URL informada não é do Mercado Livre."
         }), 400
+
+    if session.get("codigo_usuario") != codigo_usuario:
+        return jsonify({
+            "ok": False,
+            "erro": "Não autorizado para este usuário."
+        }), 403
 
     usuario = get_user_by_codigo(codigo_usuario)
     if not usuario:
@@ -634,6 +623,7 @@ def worker_job_error(job_id):
 
 
 @app.route("/api/jobs/<job_id>", methods=["GET"])
+@login_required_user
 def consultar_job(job_id):
     job = get_job_by_id(job_id)
 
@@ -642,6 +632,12 @@ def consultar_job(job_id):
             "ok": False,
             "erro": "Job não encontrado."
         }), 404
+
+    if job["usuario_id"] != session.get("user_id"):
+        return jsonify({
+            "ok": False,
+            "erro": "Acesso negado."
+        }), 403
 
     return jsonify({
         "ok": True,
@@ -660,7 +656,14 @@ def consultar_job(job_id):
 
 
 @app.route("/api/usuario/<codigo_usuario>/links", methods=["GET"])
+@login_required_user
 def listar_links_usuario(codigo_usuario):
+    if session.get("codigo_usuario") != codigo_usuario:
+        return jsonify({
+            "ok": False,
+            "erro": "Acesso negado."
+        }), 403
+
     usuario = get_user_by_codigo(codigo_usuario)
 
     if not usuario:

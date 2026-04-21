@@ -24,7 +24,7 @@
         </div>
 
         <form method="GET" action="{{ url_for('admin_links') }}" class="message-box">
-            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;">
                 <div class="input-group" style="margin-bottom:0;">
                     <label for="codigo_usuario">Filtrar por ID do usuário</label>
                     <input type="text" id="codigo_usuario" name="codigo_usuario" value="{{ filtros.codigo_usuario }}">
@@ -38,6 +38,15 @@
                         <option value="compra_confirmada" {% if filtros.status == 'compra_confirmada' %}selected{% endif %}>compra_confirmada</option>
                         <option value="compra_nao_confirmada" {% if filtros.status == 'compra_nao_confirmada' %}selected{% endif %}>compra_nao_confirmada</option>
                         <option value="cashback_pago" {% if filtros.status == 'cashback_pago' %}selected{% endif %}>cashback_pago</option>
+                    </select>
+                </div>
+
+                <div class="input-group" style="margin-bottom:0;">
+                    <label for="plataforma">Filtrar por plataforma</label>
+                    <select id="plataforma" name="plataforma">
+                        <option value="">Todas</option>
+                        <option value="mercadolivre" {% if filtros.plataforma == 'mercadolivre' %}selected{% endif %}>Mercado Livre</option>
+                        <option value="shopee" {% if filtros.plataforma == 'shopee' %}selected{% endif %}>Shopee</option>
                     </select>
                 </div>
 
@@ -56,6 +65,7 @@
                         <th>Usuário</th>
                         <th>URL original</th>
                         <th>Link afiliado</th>
+                        <th>Plataforma</th>
                         <th>Status</th>
 
                         <th>% Cashback</th>
@@ -67,7 +77,7 @@
                 <tbody>
                     {% if links %}
                         {% for link in links %}
-                            <tr>
+                            <tr class="{% if link.status == 'compra_nao_confirmada' %}row-warning{% elif link.status == 'aguardando_verificacao' %}row-neutral{% endif %}">
                                 <form method="POST" action="{{ url_for('admin_atualizar_link', link_id=link.id) }}">
                                     <td>{{ link.id }}</td>
                                     <td>{{ link.criado_em }}</td>
@@ -86,6 +96,11 @@
                                         {% else %}
                                             -
                                         {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge platform-badge {{ link.plataforma or 'nao_informado' }}">
+                                            {{ platform_labels.get(link.plataforma, "Não informado") }}
+                                        </span>
                                     </td>
                                     <td style="min-width:180px;">
                                         <select name="status">
@@ -119,7 +134,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="11">Nenhum link encontrado.</td>
+                            <td colspan="12">Nenhum link encontrado.</td>
                         </tr>
                     {% endif %}
                 </tbody>

@@ -53,7 +53,7 @@ def list_users():
 
     cursor.execute(
         """
-        SELECT id, codigo_usuario, nome, ativo, criado_em
+        SELECT id, codigo_usuario, nome, ativo, criado_em, must_change_password
         FROM usuarios
         ORDER BY codigo_usuario ASC
         """
@@ -64,17 +64,17 @@ def list_users():
     return rows
 
 
-def create_user(codigo_usuario: str, nome: str, password: str, criado_em: str, ativo: int = 1) -> int:
+def create_user(codigo_usuario: str, nome: str, password: str, criado_em: str, ativo: int = 1, must_change_password: int = 1) -> int:
     password_hash = hash_user_password(password)
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em, must_change_password)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (codigo_usuario, nome, password_hash, ativo, criado_em),
+        (codigo_usuario, nome, password_hash, ativo, criado_em, must_change_password),
     )
     user_id = cursor.lastrowid
     conn.commit()
@@ -86,7 +86,7 @@ def hash_user_password(password: str) -> str:
     return generate_password_hash(password)
 
 
-def update_user_password(user_id: int, password: str) -> int:
+def update_user_password(user_id: int, password: str, must_change_password: int = 0) -> int:
     password_hash = hash_user_password(password)
     conn = get_connection()
     cursor = conn.cursor()
@@ -94,10 +94,11 @@ def update_user_password(user_id: int, password: str) -> int:
     cursor.execute(
         """
         UPDATE usuarios
-        SET password_hash = ?
+        SET password_hash = ?,
+            must_change_password = ?
         WHERE id = ?
         """,
-        (password_hash, user_id),
+        (password_hash, must_change_password, user_id),
     )
     conn.commit()
     rows_updated = cursor.rowcount

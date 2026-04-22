@@ -16,6 +16,7 @@
             <div class="actions">
                 <a class="btn" href="{{ url_for('admin_links') }}">Voltar para links</a>
                 <a class="btn" href="{{ url_for('admin_usuarios') }}">Gerenciar usuários</a>
+                <a class="btn" href="{{ url_for('admin_reset_senhas') }}">Reset de senha</a>
                 <a class="btn" href="{{ url_for('admin_solicitacoes') }}">Solicitações</a>
             </div>
         </div>
@@ -28,6 +29,10 @@
                 Status atual: {{ solicitacao.status }}
             </div>
         {% endif %}
+
+        <div class="message-box" style="background:#fff8e6;border-color:#f2d48a;">
+            A senha informada aqui será temporária. No primeiro login, o usuário precisará definir uma nova senha.
+        </div>
 
         {% if erro %}
             <div class="message-box" style="background:#fff3f3;border-color:#f0b7b7;">{{ erro }}</div>

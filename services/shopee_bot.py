@@ -11,6 +11,8 @@ SHOPEE_AFFILIATE_URL = "https://affiliate.shopee.com.br/offer/custom_link"
 logger = logging.getLogger(__name__)
 
 URL_INPUT_SELECTORS = [
+    (By.CSS_SELECTOR, "#customLink_original_url textarea"),
+    (By.CSS_SELECTOR, ".custom-textarea textarea"),
     (By.CSS_SELECTOR, "input[placeholder*='cole']"),
     (By.CSS_SELECTOR, "input[placeholder*='link']"),
     (By.CSS_SELECTOR, "input[type='url']"),
@@ -18,6 +20,8 @@ URL_INPUT_SELECTORS = [
 ]
 
 GERAR_BUTTON_SELECTORS = [
+    (By.XPATH, "//button[.//span[normalize-space()='Obter link']]"),
+    (By.XPATH, "//button[normalize-space()='Obter link']"),
     (By.XPATH, "//button[contains(.,'Gerar') or contains(.,'Criar') or contains(.,'Generate') or contains(.,'Create')]"),
     (By.CSS_SELECTOR, "button[type='submit']"),
 ]
@@ -157,20 +161,24 @@ class ShopeeBot:
         if not self.esta_logado():
             raise LoginNecessarioError("LOGIN_MANUAL_NECESSARIO")
 
+        logger.info("[BOT SHOPEE] Tentando localizar textarea/campo de URL.")
         campo_url = self._wait_first_element(
             selectors=URL_INPUT_SELECTORS,
             etapa="campo da URL Shopee",
             timeout_message="Campo da URL não encontrado no portal de afiliados da Shopee.",
         )
+        logger.info("[BOT SHOPEE] Textarea/campo de URL encontrado.")
         campo_url.clear()
         campo_url.send_keys(url_produto)
 
+        logger.info("[BOT SHOPEE] Tentando localizar botão 'Obter link'.")
         botao_gerar = self._wait_first_element(
             selectors=GERAR_BUTTON_SELECTORS,
             etapa="botão gerar Shopee",
             clickable=True,
             timeout_message="Botão de gerar não encontrado no portal de afiliados da Shopee.",
         )
+        logger.info("[BOT SHOPEE] Botão encontrado; clicando em obter link.")
         botao_gerar.click()
 
         def link_valido(driver):

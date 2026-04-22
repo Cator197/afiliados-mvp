@@ -26,6 +26,7 @@
         <div class="actions">
             <button id="btnEntrar">Entrar</button>
             <a href="{{ url_for('pagina_solicitar_cadastro') }}" class="btn btn-secondary">Solicitar cadastro</a>
+            <a href="{{ url_for('pagina_esqueci_senha') }}" class="btn btn-secondary">Esqueci minha senha</a>
         </div>
 
         <div id="mensagem" class="message-box" style="display:none;"></div>
@@ -45,7 +46,7 @@
         }
 
         function obterCodigoUsuario() {
-            const codigo_usuario = inputCodigo.value.trim();
+            const codigo_usuario = inputCodigo.value.trim().toUpperCase();
             if (!codigo_usuario) {
                 mostrarMensagem("Digite seu código de usuário para continuar.", true);
                 return null;
@@ -80,7 +81,7 @@
                 const data = await resp.json();
 
                 if (data.ok) {
-                    window.location.href = `/usuario/${encodeURIComponent(codigo_usuario)}`;
+                    window.location.href = data.redirect_to || `/usuario/${encodeURIComponent(codigo_usuario)}`;
                 } else {
                     mostrarMensagem(data.erro || "Não foi possível realizar o login.", true);
                 }

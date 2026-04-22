@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Esqueci minha senha</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 560px;">
+        <h1>Esqueci minha senha</h1>
+        <p class="subtitle">
+            Informe seu código de usuário para enviar a solicitação ao administrador.
+        </p>
+
+        <div class="input-group">
+            <label for="codigoUsuario">Código do usuário</label>
+            <input type="text" id="codigoUsuario" placeholder="Ex: CAIO001">
+        </div>
+
+        <div class="actions">
+            <button id="btnSolicitar">Enviar solicitação</button>
+            <a class="btn" href="{{ url_for('pagina_inicial') }}">Voltar ao login</a>
+        </div>
+
+        <div id="mensagem" class="message-box" style="display:none;"></div>
+    </div>
+
+    <script>
+        const btnSolicitar = document.getElementById("btnSolicitar");
+        const inputCodigo = document.getElementById("codigoUsuario");
+        const mensagem = document.getElementById("mensagem");
+
+        function mostrarMensagem(texto, erro = false) {
+            mensagem.style.display = "block";
+            mensagem.textContent = texto;
+            mensagem.style.borderColor = erro ? "#f0b7b7" : "#e4e8ee";
+            mensagem.style.background = erro ? "#fff3f3" : "#f7f8fa";
+        }
+
+        btnSolicitar.addEventListener("click", async () => {
+            const codigo_usuario = inputCodigo.value.trim().toUpperCase();
+            if (!codigo_usuario) {
+                mostrarMensagem("Informe seu código de usuário.", true);
+                return;
+            }
+
+            btnSolicitar.disabled = true;
+            mostrarMensagem("Enviando solicitação...");
+
+            try {
+                const resp = await fetch("/api/esqueci-senha", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ codigo_usuario })
+                });
+
+                const data = await resp.json();
+                if (!data.ok) {
+                    mostrarMensagem(data.erro || "Não foi possível registrar a solicitação.", true);
+                    return;
+                }
+
+                mostrarMensagem(data.message || "Solicitação enviada com sucesso.");
+            } catch (e) {
+                mostrarMensagem("Erro de comunicação com o servidor.", true);
+            } finally {
+                btnSolicitar.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

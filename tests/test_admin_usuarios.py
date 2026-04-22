@@ -26,6 +26,7 @@ class AdminUsuariosTests(unittest.TestCase):
             ensure_jobs_platform_column,
             ensure_jobs_worker_columns,
             ensure_links_platform_column,
+            ensure_password_reset_requests_table,
             ensure_usuarios_password_column,
             ensure_worker_heartbeats_table,
         )
@@ -37,6 +38,7 @@ class AdminUsuariosTests(unittest.TestCase):
         ensure_links_platform_column()
         ensure_worker_heartbeats_table()
         ensure_cadastro_solicitacoes_table()
+        ensure_password_reset_requests_table()
 
         from app import app
 
@@ -52,6 +54,7 @@ class AdminUsuariosTests(unittest.TestCase):
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM admin_users")
+        cursor.execute("DELETE FROM password_reset_requests")
         cursor.execute("DELETE FROM usuarios")
 
         cursor.execute(
@@ -64,18 +67,17 @@ class AdminUsuariosTests(unittest.TestCase):
 
         cursor.executemany(
             """
-            INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em, must_change_password)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             [
-                ("USR001", "Usuário 1", hash_user_password("senha123"), 1, "2026-01-01 00:00:00"),
-                ("USR002", "Usuário 2", hash_user_password("senha123"), 0, "2026-01-01 00:00:00"),
+                ("USR001", "Usuário 1", hash_user_password("senha123"), 1, "2026-01-01 00:00:00", 0),
+                ("USR002", "Usuário 2", hash_user_password("senha123"), 0, "2026-01-01 00:00:00", 0),
             ],
         )
 
         conn.commit()
         conn.close()
-
 
     def _extract_csrf_token(self, html):
         match = re.search(r'name="csrf_token" value="([^"]+)"', html)
@@ -162,6 +164,7 @@ class AdminUsuariosTests(unittest.TestCase):
         atualizado = self._get_user("USR001")
         self.assertNotEqual(atualizado["password_hash"], user["password_hash"])
         self.assertTrue(check_password_hash(atualizado["password_hash"], "nova-senha-123"))
+        self.assertEqual(atualizado["must_change_password"], 1)
 
     def test_post_admin_sem_csrf_falha(self):
         self._login_admin()

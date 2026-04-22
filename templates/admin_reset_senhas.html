@@ -3,46 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solicitações de cadastro | Admin</title>
+    <title>Reset de senha | Admin</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container" style="max-width: 1400px;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
             <div>
-                <h1>Solicitações de cadastro</h1>
+                <h1>Solicitações de reset de senha</h1>
                 <p class="subtitle">Logado como {{ admin_username }}</p>
             </div>
             <div class="actions">
                 <a class="btn" href="{{ url_for('admin_criar_usuario') }}">Criar usuário</a>
                 <a class="btn" href="{{ url_for('admin_usuarios') }}">Gerenciar usuários</a>
-                <a class="btn" href="{{ url_for('admin_reset_senhas') }}">Reset de senha</a>
                 <a class="btn" href="{{ url_for('admin_links') }}">Voltar para links</a>
                 <a class="btn" href="{{ url_for('admin_logout') }}">Sair</a>
             </div>
         </div>
 
-        <form method="GET" action="{{ url_for('admin_solicitacoes') }}" class="message-box">
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;">
+        {% if erro %}
+            <div class="message-box" style="background:#fff3f3;border-color:#f0b7b7;">{{ erro }}</div>
+        {% endif %}
+
+        {% if sucesso %}
+            <div class="message-box" style="background:#e6f7ea;border-color:#b6e3c1;">{{ sucesso }}</div>
+        {% endif %}
+
+        <form method="GET" action="{{ url_for('admin_reset_senhas') }}" class="message-box">
+            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;">
                 <div class="input-group" style="margin-bottom:0;">
                     <label for="status">Filtrar por status</label>
                     <select id="status" name="status">
                         <option value="">Todos</option>
-                        <option value="novo" {% if filtros.status == 'novo' %}selected{% endif %}>novo</option>
-                        <option value="em_analise" {% if filtros.status == 'em_analise' %}selected{% endif %}>em_analise</option>
-                        <option value="aprovado" {% if filtros.status == 'aprovado' %}selected{% endif %}>aprovado</option>
-                        <option value="rejeitado" {% if filtros.status == 'rejeitado' %}selected{% endif %}>rejeitado</option>
+                        <option value="{{ reset_status_open }}" {% if filtros.status == reset_status_open %}selected{% endif %}>{{ reset_status_open }}</option>
+                        <option value="{{ reset_status_sent }}" {% if filtros.status == reset_status_sent %}selected{% endif %}>{{ reset_status_sent }}</option>
+                        <option value="{{ reset_status_done }}" {% if filtros.status == reset_status_done %}selected{% endif %}>{{ reset_status_done }}</option>
+                        <option value="{{ reset_status_ignored }}" {% if filtros.status == reset_status_ignored %}selected{% endif %}>{{ reset_status_ignored }}</option>
                     </select>
                 </div>
 
                 <div class="input-group" style="margin-bottom:0;">
-                    <label for="email">Filtrar por email</label>
-                    <input type="text" id="email" name="email" value="{{ filtros.email }}">
-                </div>
-
-                <div class="input-group" style="margin-bottom:0;">
-                    <label for="codigo_indicacao">Filtrar por código de indicação</label>
-                    <input type="text" id="codigo_indicacao" name="codigo_indicacao" value="{{ filtros.codigo_indicacao }}">
+                    <label for="codigo_usuario">Filtrar por código do usuário</label>
+                    <input type="text" id="codigo_usuario" name="codigo_usuario" value="{{ filtros.codigo_usuario }}">
                 </div>
 
                 <div class="actions" style="margin-top:0;">
@@ -56,12 +58,12 @@
             <span class="small">Total: {{ total }} registros · Página {{ page }} de {{ total_pages }}</span>
             <div class="actions" style="margin-top:0;">
                 {% if has_prev %}
-                    <a class="btn" href="{{ url_for('admin_solicitacoes', page=page-1, limit=limit, status=filtros.status, email=filtros.email, codigo_indicacao=filtros.codigo_indicacao) }}">Anterior</a>
+                    <a class="btn" href="{{ url_for('admin_reset_senhas', page=page-1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario) }}">Anterior</a>
                 {% else %}
                     <button type="button" disabled>Anterior</button>
                 {% endif %}
                 {% if has_next %}
-                    <a class="btn" href="{{ url_for('admin_solicitacoes', page=page+1, limit=limit, status=filtros.status, email=filtros.email, codigo_indicacao=filtros.codigo_indicacao) }}">Próxima</a>
+                    <a class="btn" href="{{ url_for('admin_reset_senhas', page=page+1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario) }}">Próxima</a>
                 {% else %}
                     <button type="button" disabled>Próxima</button>
                 {% endif %}
@@ -74,12 +76,11 @@
                     <tr>
                         <th>ID</th>
                         <th>Data</th>
-                        <th>Nome completo</th>
-                        <th>Email</th>
-                        <th>Código de indicação</th>
-                        <th>WhatsApp</th>
+                        <th>Código</th>
+                        <th>Nome</th>
                         <th>Status</th>
                         <th>Observações admin</th>
+                        <th>Gerar nova senha</th>
                         <th>Ação</th>
                     </tr>
                 </thead>
@@ -87,35 +88,35 @@
                     {% if solicitacoes %}
                         {% for solicitacao in solicitacoes %}
                             <tr>
-                                <form method="POST" action="{{ url_for('admin_atualizar_solicitacao', solicitacao_id=solicitacao.id) }}">
+                                <form method="POST" action="{{ url_for('admin_atualizar_reset_senha', request_id=solicitacao.id) }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <td>{{ solicitacao.id }}</td>
                                     <td>{{ solicitacao.criado_em }}</td>
-                                    <td>{{ solicitacao.nome_completo }}</td>
-                                    <td>{{ solicitacao.email }}</td>
-                                    <td>{{ solicitacao.codigo_indicacao if solicitacao.codigo_indicacao else '-' }}</td>
-                                    <td>{{ solicitacao.whatsapp if solicitacao.whatsapp else '-' }}</td>
+                                    <td>{{ solicitacao.codigo_usuario }}</td>
+                                    <td>{{ solicitacao.usuario_nome if solicitacao.usuario_nome else '-' }}</td>
                                     <td style="min-width:180px;">
                                         <select name="status">
-                                            <option value="novo" {% if solicitacao.status == 'novo' %}selected{% endif %}>novo</option>
-                                            <option value="em_analise" {% if solicitacao.status == 'em_analise' %}selected{% endif %}>em_analise</option>
-                                            <option value="aprovado" {% if solicitacao.status == 'aprovado' %}selected{% endif %}>aprovado</option>
-                                            <option value="rejeitado" {% if solicitacao.status == 'rejeitado' %}selected{% endif %}>rejeitado</option>
+                                            <option value="{{ reset_status_open }}" {% if solicitacao.status == reset_status_open %}selected{% endif %}>{{ reset_status_open }}</option>
+                                            <option value="{{ reset_status_sent }}" {% if solicitacao.status == reset_status_sent %}selected{% endif %}>{{ reset_status_sent }}</option>
+                                            <option value="{{ reset_status_done }}" {% if solicitacao.status == reset_status_done %}selected{% endif %}>{{ reset_status_done }}</option>
+                                            <option value="{{ reset_status_ignored }}" {% if solicitacao.status == reset_status_ignored %}selected{% endif %}>{{ reset_status_ignored }}</option>
                                         </select>
                                     </td>
                                     <td style="min-width:220px;">
                                         <input type="text" name="observacoes_admin" value="{{ solicitacao.observacoes_admin if solicitacao.observacoes_admin else '' }}" placeholder="Observação">
                                     </td>
+                                    <td style="min-width:220px;">
+                                        <input type="password" name="nova_senha" minlength="6" placeholder="Senha temporária">
+                                    </td>
                                     <td>
                                         <button type="submit">Salvar</button>
-                                        <a class="btn" href="{{ url_for('admin_criar_usuario', solicitacao_id=solicitacao.id) }}">Criar usuário</a>
                                     </td>
                                 </form>
                             </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="9">Nenhuma solicitação encontrada.</td>
+                            <td colspan="8">Nenhuma solicitação encontrada.</td>
                         </tr>
                     {% endif %}
                 </tbody>

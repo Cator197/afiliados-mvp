@@ -20,7 +20,8 @@ def create_tables():
         nome TEXT NOT NULL,
         password_hash TEXT,
         ativo INTEGER NOT NULL DEFAULT 1,
-        criado_em TEXT NOT NULL
+        criado_em TEXT NOT NULL,
+        must_change_password INTEGER NOT NULL DEFAULT 0
     )
     """)
 
@@ -62,7 +63,6 @@ def create_tables():
     )
     """)
 
-
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS cadastro_solicitacoes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,6 +74,18 @@ def create_tables():
         observacoes_admin TEXT,
         criado_em TEXT NOT NULL,
         atualizado_em TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS password_reset_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo_usuario TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'novo',
+        observacoes_admin TEXT,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL,
+        FOREIGN KEY (codigo_usuario) REFERENCES usuarios(codigo_usuario)
     )
     """)
 
@@ -99,7 +111,6 @@ def create_tables():
 
     conn.commit()
     conn.close()
-
 
 
 def ensure_jobs_worker_columns():
@@ -177,6 +188,9 @@ def ensure_usuarios_password_column():
     if "password_hash" not in existing_columns:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN password_hash TEXT")
 
+    if "must_change_password" not in existing_columns:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0")
+
     conn.commit()
     conn.close()
 
@@ -197,8 +211,6 @@ def ensure_worker_heartbeats_table():
 
     conn.commit()
     conn.close()
-
-
 
 
 def ensure_cadastro_solicitacoes_table():
@@ -224,6 +236,26 @@ def ensure_cadastro_solicitacoes_table():
 
     if "whatsapp" not in existing_columns:
         cursor.execute("ALTER TABLE cadastro_solicitacoes ADD COLUMN whatsapp TEXT")
+
+    conn.commit()
+    conn.close()
+
+
+def ensure_password_reset_requests_table():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS password_reset_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo_usuario TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'novo',
+        observacoes_admin TEXT,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL,
+        FOREIGN KEY (codigo_usuario) REFERENCES usuarios(codigo_usuario)
+    )
+    """)
 
     conn.commit()
     conn.close()
@@ -279,13 +311,14 @@ def create_sample_users():
 
         if not existing:
             cursor.execute("""
-                INSERT INTO usuarios (codigo_usuario, nome, ativo, criado_em)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO usuarios (codigo_usuario, nome, ativo, criado_em, must_change_password)
+                VALUES (?, ?, ?, ?, ?)
             """, (
                 codigo_usuario,
                 nome,
                 1,
-                now_str()
+                now_str(),
+                0,
             ))
 
     conn.commit()
@@ -302,6 +335,7 @@ if __name__ == "__main__":
     ensure_links_platform_column()
     ensure_worker_heartbeats_table()
     ensure_cadastro_solicitacoes_table()
+    ensure_password_reset_requests_table()
     create_default_admin()
     create_sample_users()
     print("[OK] Banco inicializado com sucesso.")

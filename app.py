@@ -55,7 +55,19 @@ from repositories.cadastro_solicitacoes_repo import (
     update_cadastro_solicitacao_status,
     get_cadastro_solicitacao_ativa_by_email,
 )
-from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table
+from repositories.password_reset_requests_repo import (
+    RESET_REQUEST_STATUS_DONE,
+    RESET_REQUEST_STATUS_IGNORED,
+    RESET_REQUEST_STATUS_OPEN,
+    RESET_REQUEST_STATUS_SENT,
+    close_active_password_reset_requests,
+    create_password_reset_request,
+    get_active_password_reset_request,
+    get_password_reset_request_by_id,
+    list_password_reset_requests,
+    update_password_reset_request,
+)
+from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table
 from init_db import ensure_jobs_platform_column, ensure_links_platform_column
 from services.platform_utils import (
     PLATFORM_MERCADOLIVRE,
@@ -107,6 +119,7 @@ ensure_jobs_platform_column()
 ensure_links_platform_column()
 ensure_worker_heartbeats_table()
 ensure_cadastro_solicitacoes_table()
+ensure_password_reset_requests_table()
 
 
 def login_required_admin(f):
@@ -179,12 +192,28 @@ def set_user_session(usuario: dict):
     session["user_id"] = usuario["id"]
     session["codigo_usuario"] = usuario["codigo_usuario"]
     session["user_nome"] = usuario["nome"]
+    session["must_change_password"] = bool(usuario["must_change_password"])
     rotate_csrf_token()
 
 
 def clear_user_session():
-    for key in ["user_logged_in", "user_id", "codigo_usuario", "user_nome"]:
+    for key in ["user_logged_in", "user_id", "codigo_usuario", "user_nome", "must_change_password"]:
         session.pop(key, None)
+
+
+def user_must_change_password() -> bool:
+    return bool(session.get("must_change_password"))
+
+
+def password_change_required_response():
+    redirect_to = url_for("pagina_alterar_senha")
+    if request.path.startswith("/api/"):
+        return jsonify({
+            "ok": False,
+            "erro": "É necessário alterar sua senha antes de continuar.",
+            "redirect_to": redirect_to,
+        }), 403
+    return redirect(redirect_to)
 
 
 def now_str():
@@ -218,12 +247,11 @@ def get_request_worker_id(payload: dict | None = None) -> str:
     return payload.get("worker_id", "").strip() or request.headers.get("X-Worker-Id", "").strip()
 
 
-
-
 def is_valid_email(email: str) -> bool:
     if not email:
         return False
     return bool(re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email))
+
 
 def admin_logado():
     return bool(session.get("admin_logged_in"))
@@ -238,6 +266,12 @@ def parse_positive_int(value, default):
 
 
 CADASTRO_SOLICITACAO_STATUS_VALIDOS = {"novo", "em_analise", "aprovado", "rejeitado"}
+RESET_REQUEST_STATUS_VALIDOS = {
+    RESET_REQUEST_STATUS_OPEN,
+    RESET_REQUEST_STATUS_SENT,
+    RESET_REQUEST_STATUS_DONE,
+    RESET_REQUEST_STATUS_IGNORED,
+}
 MIN_USER_PASSWORD_LENGTH = 6
 ADMIN_USER_ACTIONS = {"toggle_ativo", "reset_senha"}
 
@@ -260,11 +294,30 @@ def pagina_inicial():
     return render_template("index.html")
 
 
+@app.route("/esqueci-senha", methods=["GET"])
+def pagina_esqueci_senha():
+    return render_template("solicitar_reset_senha.html")
+
+
+@app.route("/usuario/alterar-senha", methods=["GET"])
+@login_required_user
+def pagina_alterar_senha():
+    usuario = {
+        "id": session.get("user_id"),
+        "codigo_usuario": session.get("codigo_usuario"),
+        "nome": session.get("user_nome"),
+    }
+    return render_template("alterar_senha.html", usuario=usuario)
+
+
 @app.route("/usuario/<codigo_usuario>", methods=["GET"])
 @login_required_user
 def pagina_usuario(codigo_usuario):
     if session.get("codigo_usuario") != codigo_usuario:
         return redirect(url_for("pagina_inicial"))
+    if user_must_change_password():
+        return redirect(url_for("pagina_alterar_senha"))
+
     usuario = {
         "id": session.get("user_id"),
         "codigo_usuario": session.get("codigo_usuario"),
@@ -282,6 +335,9 @@ def pagina_usuario(codigo_usuario):
 def pagina_historico(codigo_usuario):
     if session.get("codigo_usuario") != codigo_usuario:
         return redirect(url_for("pagina_inicial"))
+    if user_must_change_password():
+        return redirect(url_for("pagina_alterar_senha"))
+
     usuario = {
         "id": session.get("user_id"),
         "codigo_usuario": session.get("codigo_usuario"),
@@ -497,6 +553,91 @@ def admin_atualizar_solicitacao(solicitacao_id):
     return redirect(url_for("admin_solicitacoes", sucesso="1"))
 
 
+@app.route("/admin/reset-senhas", methods=["GET"])
+@login_required_admin
+def admin_reset_senhas():
+    if not admin_logado():
+        return redirect(url_for("admin_login"))
+
+    status = request.args.get("status", "").strip()
+    status_filtro = status if status in RESET_REQUEST_STATUS_VALIDOS else None
+    codigo_usuario = request.args.get("codigo_usuario", "").strip() or None
+    page = parse_positive_int(request.args.get("page"), 1)
+    limit = parse_positive_int(request.args.get("limit"), 20)
+
+    solicitacoes, total = list_password_reset_requests(
+        status=status_filtro,
+        codigo_usuario=codigo_usuario,
+        page=page,
+        limit=limit,
+    )
+    total_pages = max((total + limit - 1) // limit, 1)
+    has_prev = page > 1
+    has_next = page < total_pages
+
+    return render_template(
+        "admin_reset_senhas.html",
+        admin_username=session.get("admin_username"),
+        solicitacoes=solicitacoes,
+        page=page,
+        limit=limit,
+        total=total,
+        total_pages=total_pages,
+        has_prev=has_prev,
+        has_next=has_next,
+        filtros={
+            "status": status_filtro or "",
+            "codigo_usuario": codigo_usuario or "",
+        },
+        reset_status_open=RESET_REQUEST_STATUS_OPEN,
+        reset_status_sent=RESET_REQUEST_STATUS_SENT,
+        reset_status_done=RESET_REQUEST_STATUS_DONE,
+        reset_status_ignored=RESET_REQUEST_STATUS_IGNORED,
+        erro=request.args.get("erro", "").strip() or None,
+        sucesso=request.args.get("sucesso", "").strip() or None,
+    )
+
+
+@app.route("/admin/reset-senhas/<int:request_id>/atualizar", methods=["POST"])
+@login_required_admin
+@csrf_protected
+def admin_atualizar_reset_senha(request_id):
+    if not admin_logado():
+        return redirect(url_for("admin_login"))
+
+    reset_request = get_password_reset_request_by_id(request_id)
+    if not reset_request:
+        return redirect(url_for("admin_reset_senhas", erro="Solicitação não encontrada."))
+
+    status = request.form.get("status", "").strip()
+    observacoes_admin = request.form.get("observacoes_admin", "").strip() or None
+    nova_senha = request.form.get("nova_senha", "")
+
+    if status not in RESET_REQUEST_STATUS_VALIDOS:
+        return redirect(url_for("admin_reset_senhas", erro="Status inválido."))
+
+    usuario = get_user_by_codigo_any_status(reset_request["codigo_usuario"])
+    status_final = status
+
+    if nova_senha:
+        if len(nova_senha) < MIN_USER_PASSWORD_LENGTH:
+            return redirect(url_for("admin_reset_senhas", erro=f"A nova senha deve ter no mínimo {MIN_USER_PASSWORD_LENGTH} caracteres."))
+        if not usuario:
+            return redirect(url_for("admin_reset_senhas", erro="Usuário da solicitação não encontrado."))
+        update_user_password(user_id=usuario["id"], password=nova_senha, must_change_password=1)
+        if status == RESET_REQUEST_STATUS_OPEN:
+            status_final = RESET_REQUEST_STATUS_SENT
+
+    update_password_reset_request(
+        request_id=request_id,
+        status=status_final,
+        observacoes_admin=observacoes_admin,
+        atualizado_em=now_str(),
+    )
+
+    return redirect(url_for("admin_reset_senhas", sucesso="Solicitação de reset atualizada."))
+
+
 @app.route("/admin/usuarios/criar", methods=["GET", "POST"])
 @login_required_admin
 def admin_criar_usuario():
@@ -567,6 +708,7 @@ def admin_criar_usuario():
         password=senha,
         ativo=1,
         criado_em=now_str(),
+        must_change_password=1,
     )
 
     if solicitacao and aprovar_solicitacao:
@@ -587,7 +729,7 @@ def admin_criar_usuario():
             "aprovar_solicitacao": False,
         },
         erro=None,
-        sucesso="Usuário criado com sucesso.",
+        sucesso="Usuário criado com sucesso. No primeiro login ele precisará definir uma nova senha.",
     )
 
 
@@ -639,9 +781,9 @@ def admin_atualizar_usuario(user_id):
             )
         )
 
-    update_user_password(user_id=user_id, password=nova_senha)
+    update_user_password(user_id=user_id, password=nova_senha, must_change_password=1)
     return redirect(
-        url_for("admin_usuarios", sucesso=f"Senha do usuário {usuario['codigo_usuario']} atualizada.")
+        url_for("admin_usuarios", sucesso=f"Senha do usuário {usuario['codigo_usuario']} atualizada. Ele deverá alterá-la no próximo acesso.")
     )
 
 
@@ -651,7 +793,6 @@ def health():
         "ok": True,
         "message": "API online"
     })
-
 
 
 def worker_token_is_valid(token: str) -> bool:
@@ -673,10 +814,11 @@ def validate_worker_request():
 
     return None
 
+
 @app.route("/api/login", methods=["POST"])
 def login_usuario():
     data = request.get_json(silent=True) or {}
-    codigo_usuario = data.get("codigo_usuario", "").strip()
+    codigo_usuario = data.get("codigo_usuario", "").strip().upper()
     senha = data.get("senha", "")
 
     if not codigo_usuario:
@@ -692,6 +834,8 @@ def login_usuario():
 
     usuario = resultado["usuario"]
     set_user_session(usuario)
+    must_change_password = bool(usuario["must_change_password"])
+    redirect_to = url_for("pagina_alterar_senha") if must_change_password else url_for("pagina_usuario", codigo_usuario=usuario["codigo_usuario"])
 
     return jsonify({
         "ok": True,
@@ -699,7 +843,9 @@ def login_usuario():
             "id": usuario["id"],
             "codigo_usuario": usuario["codigo_usuario"],
             "nome": usuario["nome"],
-        }
+        },
+        "must_change_password": must_change_password,
+        "redirect_to": redirect_to,
     })
 
 
@@ -711,6 +857,45 @@ def validar_usuario():
     }), 410
 
 
+@app.route("/api/alterar-senha", methods=["POST"])
+@login_required_user
+@csrf_protected
+def alterar_senha_usuario():
+    data = request.get_json(silent=True) or {}
+    senha_atual = data.get("senha_atual", "")
+    nova_senha = data.get("nova_senha", "")
+    confirmar_senha = data.get("confirmar_senha", "")
+
+    if not senha_atual:
+        return jsonify({"ok": False, "erro": "Informe a senha atual."}), 400
+
+    if len(nova_senha) < MIN_USER_PASSWORD_LENGTH:
+        return jsonify({"ok": False, "erro": f"A nova senha deve ter no mínimo {MIN_USER_PASSWORD_LENGTH} caracteres."}), 400
+
+    if nova_senha != confirmar_senha:
+        return jsonify({"ok": False, "erro": "A confirmação da nova senha não confere."}), 400
+
+    codigo_usuario = session.get("codigo_usuario", "")
+    validacao = validate_user_login(codigo_usuario, senha_atual)
+    if not validacao["ok"]:
+        return jsonify({"ok": False, "erro": "Senha atual inválida."}), 401
+
+    usuario_id = session.get("user_id")
+    usuario = get_user_by_id(usuario_id) if usuario_id else None
+    if not usuario:
+        return jsonify({"ok": False, "erro": "Usuário não encontrado."}), 404
+
+    update_user_password(user_id=usuario["id"], password=nova_senha, must_change_password=0)
+    session["must_change_password"] = False
+    rotate_csrf_token()
+    close_active_password_reset_requests(codigo_usuario=usuario["codigo_usuario"], atualizado_em=now_str())
+
+    return jsonify({
+        "ok": True,
+        "message": "Senha alterada com sucesso.",
+        "redirect_to": url_for("pagina_usuario", codigo_usuario=usuario["codigo_usuario"]),
+        "csrf_token": session.get("csrf_token"),
+    })
 
 
 @app.route("/solicitar-cadastro", methods=["GET"])
@@ -762,10 +947,43 @@ def solicitar_cadastro_publico():
         "solicitacao_id": solicitacao_id,
     }), 201
 
+
+@app.route("/api/esqueci-senha", methods=["POST"])
+def solicitar_reset_senha_publico():
+    data = request.get_json(silent=True) or {}
+    codigo_usuario = data.get("codigo_usuario", "").strip().upper()
+
+    if not codigo_usuario:
+        return jsonify({"ok": False, "erro": "Informe seu código de usuário."}), 400
+
+    usuario = get_user_by_codigo_any_status(codigo_usuario)
+    if not usuario or not usuario["ativo"]:
+        return jsonify({"ok": False, "erro": "Usuário não encontrado ou inativo."}), 404
+
+    solicitacao_existente = get_active_password_reset_request(codigo_usuario)
+    if solicitacao_existente:
+        return jsonify({"ok": False, "erro": "Já existe uma solicitação de redefinição em andamento para esse usuário."}), 409
+
+    request_id = create_password_reset_request(
+        codigo_usuario=codigo_usuario,
+        criado_em=now_str(),
+        atualizado_em=now_str(),
+    )
+
+    return jsonify({
+        "ok": True,
+        "message": "Solicitação enviada. O administrador irá gerar uma nova senha temporária para você.",
+        "request_id": request_id,
+    }), 201
+
+
 @app.route("/api/solicitar-link", methods=["POST"])
 @login_required_user
 @csrf_protected
 def solicitar_link():
+    if user_must_change_password():
+        return password_change_required_response()
+
     data = request.get_json(silent=True) or {}
 
     url = data.get("url", "").strip()
@@ -1015,6 +1233,9 @@ def worker_job_error(job_id):
 @app.route("/api/jobs/<job_id>", methods=["GET"])
 @login_required_user
 def consultar_job(job_id):
+    if user_must_change_password():
+        return password_change_required_response()
+
     job = get_job_by_id(job_id)
 
     if not job:
@@ -1055,6 +1276,8 @@ def resumo_links_usuario(codigo_usuario):
             "ok": False,
             "erro": "Acesso negado."
         }), 403
+    if user_must_change_password():
+        return password_change_required_response()
 
     usuario = get_user_by_codigo(codigo_usuario)
 
@@ -1085,6 +1308,8 @@ def listar_links_usuario(codigo_usuario):
             "ok": False,
             "erro": "Acesso negado."
         }), 403
+    if user_must_change_password():
+        return password_change_required_response()
 
     usuario = get_user_by_codigo(codigo_usuario)
 
@@ -1122,6 +1347,7 @@ def listar_links_usuario(codigo_usuario):
             for link in links
         ]
     })
+
 
 @app.route("/api/admin/worker-status", methods=["GET"])
 def api_worker_status():
@@ -1207,6 +1433,7 @@ def api_bot_status():
             "message": message,
         }
     })
+
 
 if __name__ == "__main__":
     host = HOST or "0.0.0.0"

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alterar senha</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 560px;">
+        <h1>Defina sua nova senha</h1>
+        <p class="subtitle">
+            Olá, {{ usuario.nome }}. Para continuar, altere a senha temporária enviada pelo administrador.
+        </p>
+
+        <div class="input-group">
+            <label for="senhaAtual">Senha atual</label>
+            <input type="password" id="senhaAtual" placeholder="Digite a senha recebida">
+        </div>
+
+        <div class="input-group">
+            <label for="novaSenha">Nova senha</label>
+            <input type="password" id="novaSenha" minlength="6" placeholder="Mínimo de 6 caracteres">
+        </div>
+
+        <div class="input-group">
+            <label for="confirmarSenha">Confirmar nova senha</label>
+            <input type="password" id="confirmarSenha" minlength="6" placeholder="Repita a nova senha">
+        </div>
+
+        <div class="actions">
+            <button id="btnSalvar">Salvar nova senha</button>
+            <a class="btn" href="{{ url_for('user_logout') }}">Sair</a>
+        </div>
+
+        <div id="mensagem" class="message-box" style="display:none;"></div>
+    </div>
+
+    <script>
+        window.USUARIO = {
+            codigo_usuario: "{{ usuario.codigo_usuario }}",
+            csrf_token: "{{ csrf_token }}"
+        };
+
+        const btnSalvar = document.getElementById("btnSalvar");
+        const senhaAtual = document.getElementById("senhaAtual");
+        const novaSenha = document.getElementById("novaSenha");
+        const confirmarSenha = document.getElementById("confirmarSenha");
+        const mensagem = document.getElementById("mensagem");
+
+        function mostrarMensagem(texto, erro = false) {
+            mensagem.style.display = "block";
+            mensagem.textContent = texto;
+            mensagem.style.borderColor = erro ? "#f0b7b7" : "#e4e8ee";
+            mensagem.style.background = erro ? "#fff3f3" : "#f7f8fa";
+        }
+
+        btnSalvar.addEventListener("click", async () => {
+            btnSalvar.disabled = true;
+            mostrarMensagem("Salvando nova senha...");
+
+            try {
+                const resp = await fetch("/api/alterar-senha", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-Token": window.USUARIO.csrf_token
+                    },
+                    body: JSON.stringify({
+                        senha_atual: senhaAtual.value,
+                        nova_senha: novaSenha.value,
+                        confirmar_senha: confirmarSenha.value,
+                    })
+                });
+
+                const data = await resp.json();
+                if (!data.ok) {
+                    mostrarMensagem(data.erro || "Não foi possível alterar a senha.", true);
+                    return;
+                }
+
+                if (data.csrf_token) {
+                    window.USUARIO.csrf_token = data.csrf_token;
+                }
+                mostrarMensagem(data.message || "Senha alterada com sucesso.");
+                window.location.href = data.redirect_to || `/usuario/${encodeURIComponent(window.USUARIO.codigo_usuario)}`;
+            } catch (e) {
+                mostrarMensagem("Erro de comunicação com o servidor.", true);
+            } finally {
+                btnSalvar.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

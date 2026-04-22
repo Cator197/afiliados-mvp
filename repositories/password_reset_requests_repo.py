@@ -134,3 +134,24 @@ def update_password_reset_request(request_id: int, status=None, observacoes_admi
     rows_updated = cursor.rowcount
     conn.close()
     return rows_updated
+
+
+def close_active_password_reset_requests(codigo_usuario: str, atualizado_em: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE password_reset_requests
+        SET status = ?,
+            atualizado_em = ?
+        WHERE codigo_usuario = ?
+          AND status IN (?, ?)
+        """,
+        (RESET_REQUEST_STATUS_DONE, atualizado_em, codigo_usuario, *RESET_REQUEST_ACTIVE_STATUSES),
+    )
+
+    conn.commit()
+    rows_updated = cursor.rowcount
+    conn.close()
+    return rows_updated

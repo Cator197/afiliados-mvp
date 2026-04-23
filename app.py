@@ -5,6 +5,8 @@ import sys
 from config import HOST, PORT, DEBUG
 from datetime import datetime, timedelta
 from functools import wraps
+from threading import Lock
+import time
 import re
 
 from flask import (
@@ -18,6 +20,11 @@ from config import (
     SESSION_COOKIE_SAMESITE,
     SESSION_COOKIE_SECURE,
     SESSION_LIFETIME_MINUTES,
+    ADMIN_LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+    USER_LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+    PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS,
+    RATE_LIMIT_WINDOW_SECONDS,
+    RATE_LIMIT_BLOCK_SECONDS,
     JOB_STATUS_NA_FILA,
     JOB_STATUS_PROCESSANDO,
     JOB_STATUS_CONCLUIDO,
@@ -279,6 +286,92 @@ ADMIN_USER_ACTIONS = {"toggle_ativo", "reset_senha"}
 
 CADASTRO_MIN_INTERVAL_SECONDS = 60
 _last_signup_attempt_by_email = {}
+_rate_limit_attempts = {}
+_rate_limit_lock = Lock()
+
+
+def get_client_ip() -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
+    return forwarded_for or request.remote_addr or "unknown"
+
+
+def get_rate_limit_key(scope: str) -> str:
+    return f"{scope}:{get_client_ip()}"
+
+
+def get_rate_limit_retry_after(scope: str, max_attempts: int) -> int:
+    now = time.time()
+    key = get_rate_limit_key(scope)
+
+    with _rate_limit_lock:
+        entry = _rate_limit_attempts.get(key)
+        if not entry:
+            return 0
+
+        blocked_until = entry.get("blocked_until", 0)
+        if blocked_until > now:
+            return max(1, int(blocked_until - now))
+
+        attempts = [
+            attempt_at
+            for attempt_at in entry.get("attempts", [])
+            if now - attempt_at < RATE_LIMIT_WINDOW_SECONDS
+        ]
+
+        if attempts:
+            entry["attempts"] = attempts
+            entry["blocked_until"] = 0
+            return 0
+
+        _rate_limit_attempts.pop(key, None)
+        return 0
+
+
+def register_rate_limit_attempt(scope: str, max_attempts: int) -> None:
+    now = time.time()
+    key = get_rate_limit_key(scope)
+
+    with _rate_limit_lock:
+        entry = _rate_limit_attempts.setdefault(key, {"attempts": [], "blocked_until": 0})
+        if entry.get("blocked_until", 0) > now:
+            return
+
+        attempts = [
+            attempt_at
+            for attempt_at in entry.get("attempts", [])
+            if now - attempt_at < RATE_LIMIT_WINDOW_SECONDS
+        ]
+        attempts.append(now)
+
+        if len(attempts) >= max_attempts:
+            entry["attempts"] = []
+            entry["blocked_until"] = now + RATE_LIMIT_BLOCK_SECONDS
+            return
+
+        entry["attempts"] = attempts
+        entry["blocked_until"] = 0
+
+
+def clear_rate_limit_attempts(scope: str) -> None:
+    key = get_rate_limit_key(scope)
+    with _rate_limit_lock:
+        _rate_limit_attempts.pop(key, None)
+
+
+def rate_limit_message() -> str:
+    return "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente."
+
+
+def rate_limit_response(scope: str, max_attempts: int, html_template: str | None = None):
+    retry_after = get_rate_limit_retry_after(scope, max_attempts)
+    if not retry_after:
+        return None
+
+    headers = {"Retry-After": str(retry_after)}
+    if html_template:
+        return render_template(html_template, erro=rate_limit_message()), 429, headers
+
+    return jsonify({"ok": False, "erro": rate_limit_message()}), 429, headers
 
 
 def is_signup_rate_limited(email: str, now: datetime) -> bool:
@@ -365,7 +458,16 @@ def admin_login():
         erro_msg = "Sessão inválida. Atualize a página e tente novamente." if erro == "csrf" else None
         return render_template("admin_login.html", erro=erro_msg)
 
+    blocked_response = rate_limit_response(
+        "admin_login",
+        ADMIN_LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+        html_template="admin_login.html",
+    )
+    if blocked_response:
+        return blocked_response
+
     if not validate_csrf_token():
+        register_rate_limit_attempt("admin_login", ADMIN_LOGIN_RATE_LIMIT_MAX_ATTEMPTS)
         return csrf_error_response()
 
     username = request.form.get("username", "").strip()
@@ -374,11 +476,13 @@ def admin_login():
     admin = validate_admin_login(username, password)
 
     if not admin:
+        register_rate_limit_attempt("admin_login", ADMIN_LOGIN_RATE_LIMIT_MAX_ATTEMPTS)
         return render_template(
             "admin_login.html",
             erro="Usuário ou senha inválidos."
         )
 
+    clear_rate_limit_attempts("admin_login")
     session["admin_logged_in"] = True
     session["admin_username"] = admin["username"]
     session.permanent = True
@@ -819,22 +923,30 @@ def validate_worker_request():
 
 @app.route("/api/login", methods=["POST"])
 def login_usuario():
+    blocked_response = rate_limit_response("api_login", USER_LOGIN_RATE_LIMIT_MAX_ATTEMPTS)
+    if blocked_response:
+        return blocked_response
+
     data = request.get_json(silent=True) or {}
     codigo_usuario = data.get("codigo_usuario", "").strip().upper()
     senha = data.get("senha", "")
 
     if not codigo_usuario:
+        register_rate_limit_attempt("api_login", USER_LOGIN_RATE_LIMIT_MAX_ATTEMPTS)
         return jsonify({"ok": False, "erro": "Código do usuário não informado."}), 400
 
     if not senha:
+        register_rate_limit_attempt("api_login", USER_LOGIN_RATE_LIMIT_MAX_ATTEMPTS)
         return jsonify({"ok": False, "erro": "Senha não informada."}), 400
 
     resultado = validate_user_login(codigo_usuario, senha)
 
     if not resultado["ok"]:
+        register_rate_limit_attempt("api_login", USER_LOGIN_RATE_LIMIT_MAX_ATTEMPTS)
         return jsonify({"ok": False, "erro": resultado["erro"]}), resultado["status_code"]
 
     usuario = resultado["usuario"]
+    clear_rate_limit_attempts("api_login")
     set_user_session(usuario)
     must_change_password = bool(usuario["must_change_password"])
     redirect_to = url_for("pagina_alterar_senha") if must_change_password else url_for("pagina_usuario", codigo_usuario=usuario["codigo_usuario"])
@@ -952,6 +1064,12 @@ def solicitar_cadastro_publico():
 
 @app.route("/api/esqueci-senha", methods=["POST"])
 def solicitar_reset_senha_publico():
+    blocked_response = rate_limit_response("api_esqueci_senha", PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS)
+    if blocked_response:
+        return blocked_response
+
+    register_rate_limit_attempt("api_esqueci_senha", PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS)
+
     data = request.get_json(silent=True) or {}
     codigo_usuario = data.get("codigo_usuario", "").strip().upper()
 

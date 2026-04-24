@@ -1,9 +1,38 @@
 from pathlib import Path
 import os
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - fallback para ambientes sem python-dotenv
+    load_dotenv = None
 
 
 BASE_DIR = Path(__file__).resolve().parent
+ENV_FILE = BASE_DIR / ".env"
 DEFAULT_SECURE_STORAGE_DIR = Path.home() / ".afiliados-mvp"
+
+
+def load_local_env(env_file: Path) -> None:
+    if not env_file.exists():
+        return
+
+    if load_dotenv is not None:
+        load_dotenv(env_file, override=False)
+        return
+
+    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+load_local_env(ENV_FILE)
 
 
 def _env_str(name: str, default: str = "") -> str:

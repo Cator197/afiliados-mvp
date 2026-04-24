@@ -6,14 +6,19 @@ __pycache__/
 venv/
 .env
 
-# Banco de dados
+# Banco de dados e armazenamento sensivel local
 *.db
+/data/
+/logs/
+/chrome_profile/
+/.afiliados-mvp/
+/.secure-storage/
+/secure-storage/
 
 # Logs
-logs/
 *.log
 
-# Selenium / Chrome profile (CRÍTICO)
+# Selenium / Chrome profile
 data/chrome_profile/
 
 # IDE

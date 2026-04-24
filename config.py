@@ -3,10 +3,7 @@ import os
 
 
 BASE_DIR = Path(__file__).resolve().parent
-
-DATA_DIR = BASE_DIR / "data"
-LOGS_DIR = BASE_DIR / "logs"
-DB_PATH = DATA_DIR / "afiliados.db"
+DEFAULT_SECURE_STORAGE_DIR = Path.home() / ".afiliados-mvp"
 
 
 def _env_str(name: str, default: str = "") -> str:
@@ -17,8 +14,17 @@ def _env_bool(name: str, default: str = "false") -> bool:
     return _env_str(name, default).lower() in {"1", "true", "yes", "on"}
 
 
+def _env_path(name: str, default: Path) -> Path:
+    return Path(_env_str(name, str(default))).expanduser()
+
+
 APP_ENV = (_env_str("APP_ENV") or _env_str("FLASK_ENV") or _env_str("ENV") or "development").lower()
 IS_PRODUCTION = APP_ENV in {"production", "prod"}
+
+SECURE_STORAGE_DIR = _env_path("SECURE_STORAGE_DIR", DEFAULT_SECURE_STORAGE_DIR)
+DATA_DIR = _env_path("DATA_DIR", SECURE_STORAGE_DIR / "data")
+LOGS_DIR = _env_path("LOGS_DIR", SECURE_STORAGE_DIR / "logs")
+DB_PATH = _env_path("DB_PATH", DATA_DIR / "afiliados.db")
 
 SECRET_KEY = _env_str("SECRET_KEY")
 
@@ -90,7 +96,7 @@ CHROME_BINARY_PATH = _env_str("CHROME_BINARY_PATH")
 CHROMEDRIVER_PATH = _env_str("CHROMEDRIVER_PATH")
 CHROME_USE_WEBDRIVER_MANAGER_FALLBACK = _env_bool("CHROME_USE_WEBDRIVER_MANAGER_FALLBACK", "false")
 CHROME_PROFILE_DIR = Path(
-    _env_str("CHROME_PROFILE_DIR", str(DATA_DIR / "chrome_profile"))
+    _env_str("CHROME_PROFILE_DIR", str(SECURE_STORAGE_DIR / "chrome_profile"))
 ).expanduser()
 
 

@@ -1,5 +1,5 @@
 import sqlite3
-from config import DATA_DIR, LOGS_DIR, DB_PATH
+from config import DATA_DIR, LOGS_DIR, DB_PATH, SQLITE_BUSY_TIMEOUT_MS
 
 
 def ensure_directories():
@@ -9,6 +9,13 @@ def ensure_directories():
 
 def get_connection():
     ensure_directories()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
     conn.row_factory = sqlite3.Row
+    configure_connection(conn)
     return conn
+
+
+def configure_connection(conn):
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")

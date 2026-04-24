@@ -43,6 +43,10 @@ class ShopeeBot:
     def _set_aguardando_login_manual(self, aguardando: bool):
         self._aguardando_login_manual = aguardando
 
+    def _esta_no_portal(self) -> bool:
+        url_atual = (self.driver.current_url or "").lower()
+        return "affiliate.shopee.com.br" in url_atual
+
     def _esta_em_tela_login(self) -> bool:
         url_atual = (self.driver.current_url or "").lower()
         if "login" in url_atual or "signin" in url_atual:
@@ -119,7 +123,8 @@ class ShopeeBot:
                 self._set_aguardando_login_manual(False)
             return autenticado
 
-        self.driver.get(SHOPEE_AFFILIATE_URL)
+        if force_check or not self._esta_no_portal():
+            self.driver.get(SHOPEE_AFFILIATE_URL)
         autenticado = not self._esta_em_tela_login()
         if autenticado:
             self._set_aguardando_login_manual(False)
@@ -134,7 +139,8 @@ class ShopeeBot:
         if passive_check:
             return self._portal_tem_campo_url() and not self._esta_em_tela_login()
 
-        self.driver.get(SHOPEE_AFFILIATE_URL)
+        if force_check or not self._esta_no_portal():
+            self.driver.get(SHOPEE_AFFILIATE_URL)
         if self._esta_em_tela_login():
             self._set_aguardando_login_manual(True)
             return False

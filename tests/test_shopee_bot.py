@@ -17,6 +17,15 @@ class ShopeeBotSelectorsTests(unittest.TestCase):
         self.assertIn("Obter link", GERAR_BUTTON_SELECTORS[0][1])
         self.assertIn("Obter link", GERAR_BUTTON_SELECTORS[1][1])
 
+    def test_esta_logado_nao_reabre_portal_quando_ja_esta_no_portal(self):
+        self.driver.current_url = "https://affiliate.shopee.com.br/offer/custom_link"
+        self.bot._esta_em_tela_login = MagicMock(return_value=False)
+
+        autenticado = self.bot.esta_logado()
+
+        self.assertTrue(autenticado)
+        self.driver.get.assert_not_called()
+
     @patch.object(ShopeeBot, "garantir_portal_pronto")
     @patch.object(ShopeeBot, "esta_logado", return_value=True)
     def test_gerar_link_preenche_textarea_e_clica_botao(

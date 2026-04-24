@@ -48,9 +48,11 @@ def process_job(job_data: dict):
 
     try:
         logger.info("[JOB %s] Iniciando processamento do job.", job_id)
+        logger.info("[MARKETPLACE DETECTADO] %s", plataforma)
 
         if plataforma not in SUPPORTED_PLATFORMS:
             raise RuntimeError(f"Plataforma '{plataforma}' não suportada no worker local.")
+        logger.info("[WORKER] job %s enviado para bot %s.", job_id, "Shopee" if plataforma == "shopee" else "Mercado Livre")
 
         _update_job_status_com_log(
             job_id=job_id,

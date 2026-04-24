@@ -31,6 +31,9 @@ from config import (
     JOB_STATUS_CONCLUIDO,
     JOB_STATUS_ERRO,
     LINK_STATUS_AGUARDANDO_VERIFICACAO,
+    LINK_STATUS_COMPRA_CONFIRMADA,
+    LINK_STATUS_COMPRA_NAO_CONFIRMADA,
+    LINK_STATUS_CASHBACK_PAGO,
     CASHBACK_PERCENTUAL_PADRAO,
     WORKER_API_TOKEN,
     WORKER_ENABLED,
@@ -275,6 +278,19 @@ def parse_positive_int(value, default):
         return default
 
 
+def parse_decimal_input(value_raw: str, field_label: str):
+    value_raw = (value_raw or "").strip()
+    if not value_raw:
+        return None, None
+
+    try:
+        value = float(value_raw.replace(",", "."))
+    except ValueError:
+        return None, f"{field_label} inválido."
+
+    return value, None
+
+
 CADASTRO_SOLICITACAO_STATUS_VALIDOS = {"novo", "em_analise", "aprovado", "rejeitado"}
 RESET_REQUEST_STATUS_VALIDOS = {
     RESET_REQUEST_STATUS_OPEN,
@@ -284,6 +300,12 @@ RESET_REQUEST_STATUS_VALIDOS = {
 }
 MIN_USER_PASSWORD_LENGTH = 6
 ADMIN_USER_ACTIONS = {"toggle_ativo", "reset_senha"}
+ADMIN_LINK_STATUS_VALIDOS = {
+    LINK_STATUS_AGUARDANDO_VERIFICACAO,
+    LINK_STATUS_COMPRA_CONFIRMADA,
+    LINK_STATUS_COMPRA_NAO_CONFIRMADA,
+    LINK_STATUS_CASHBACK_PAGO,
+}
 
 CADASTRO_MIN_INTERVAL_SECONDS = 60
 _last_signup_attempt_by_email = {}
@@ -532,6 +554,8 @@ def admin_links():
         total_pages=total_pages,
         has_prev=has_prev,
         has_next=has_next,
+        erro=request.args.get("erro", "").strip() or None,
+        sucesso=request.args.get("sucesso", "").strip() or None,
         platform_labels=PLATFORM_LABELS,
         filtros={
             "status": status or "",
@@ -557,21 +581,22 @@ def admin_atualizar_link(link_id):
     percentual_cashback_raw = request.form.get("percentual_cashback", "").strip()
     observacoes_admin = request.form.get("observacoes_admin", "").strip() or None
 
-    valor_comissao = None
-    percentual_cashback = None
+    if status and status not in ADMIN_LINK_STATUS_VALIDOS:
+        return redirect(url_for("admin_links", erro="Status não permitido."))
+
+    valor_comissao, erro_comissao = parse_decimal_input(valor_comissao_raw, "Comissão")
+    if erro_comissao:
+        return redirect(url_for("admin_links", erro=erro_comissao))
+    if valor_comissao is not None and valor_comissao < 0:
+        return redirect(url_for("admin_links", erro="Comissão não pode ser negativa."))
+
+    percentual_cashback, erro_cashback = parse_decimal_input(percentual_cashback_raw, "Cashback")
+    if erro_cashback:
+        return redirect(url_for("admin_links", erro=erro_cashback))
+    if percentual_cashback is not None and not (0 <= percentual_cashback <= 100):
+        return redirect(url_for("admin_links", erro="Cashback deve estar entre 0 e 100."))
+
     valor_cashback = None
-
-    if valor_comissao_raw:
-        try:
-            valor_comissao = float(valor_comissao_raw.replace(",", "."))
-        except ValueError:
-            valor_comissao = None
-
-    if percentual_cashback_raw:
-        try:
-            percentual_cashback = float(percentual_cashback_raw.replace(",", "."))
-        except ValueError:
-            percentual_cashback = None
 
     percentual_base = percentual_cashback if percentual_cashback is not None else link["percentual_cashback"]
 
@@ -588,7 +613,7 @@ def admin_atualizar_link(link_id):
         atualizado_em=now_str()
     )
 
-    return redirect(url_for("admin_links", sucesso="1"))
+    return redirect(url_for("admin_links", sucesso="Link atualizado com sucesso."))
 
 
 @app.route("/admin/solicitacoes", methods=["GET"])

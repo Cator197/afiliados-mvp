@@ -26,6 +26,18 @@
             Verificando status do robô...
         </div>
 
+        {% if erro %}
+            <div class="message-box" style="background:#fff3f3;border-color:#f0b7b7;color:#8a1f1f;">
+                {{ erro }}
+            </div>
+        {% endif %}
+
+        {% if sucesso %}
+            <div class="message-box" style="background:#e6f7ea;border-color:#b6e3c1;color:#1f6b33;">
+                {{ sucesso }}
+            </div>
+        {% endif %}
+
         <form method="GET" action="{{ url_for('admin_links') }}" class="message-box">
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;">
                 <div class="input-group" style="margin-bottom:0;">

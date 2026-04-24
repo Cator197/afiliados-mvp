@@ -92,10 +92,15 @@ def _plataforma_label(plataforma: str) -> str:
     return "Shopee" if plataforma == PLATFORM_SHOPEE else "Mercado Livre"
 
 
+def _browser_prefixo(plataforma: str) -> str:
+    return "[BROWSER SHOPEE]" if plataforma == PLATFORM_SHOPEE else "[BROWSER ML]"
+
+
 def criar_nova_instancia(job_id: str | None = None, plataforma: str = PLATFORM_MERCADOLIVRE):
 
     try:
         logger.info("%sCriando nova instância do bot da plataforma %s.", _job_tag(job_id), plataforma)
+        logger.info("%s%s criando novo driver.", _job_tag(job_id), _browser_prefixo(plataforma))
         _log_ambiente_selenium(job_id)
         set_bot_status(BOT_STATUS_RECRIANDO, "Recriando navegador do robô...", plataforma=plataforma)
 
@@ -171,6 +176,7 @@ def get_bot(job_id: str | None = None, plataforma: str = PLATFORM_MERCADOLIVRE):
             return criar_nova_instancia(job_id=job_id, plataforma=plataforma)
 
         logger.info("%sReusando instância atual do bot (%s) e sessão ativa do navegador.", _job_tag(job_id), plataforma)
+        logger.info("%s%s reutilizando driver existente.", _job_tag(job_id), _browser_prefixo(plataforma))
         return bot
 
 

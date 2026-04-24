@@ -1138,6 +1138,7 @@ def solicitar_link():
             "ok": False,
             "erro": "A URL informada não pertence a uma plataforma suportada."
         }), 400
+    app.logger.info("[MARKETPLACE DETECTADO] %s | url=%s", plataforma, url)
 
     usuario_id = session.get("user_id")
     usuario = get_user_by_id(usuario_id) if usuario_id else None

@@ -204,6 +204,12 @@ def process_one_job(bot, job: dict) -> None:
         send_error(job_id=job_id, mensagem_erro=mensagem)
         return
 
+    logger.info("[MARKETPLACE DETECTADO] %s", plataforma)
+    logger.info(
+        "[WORKER] job %s enviado para bot %s.",
+        job_id,
+        "Shopee" if plataforma == PLATFORM_SHOPEE else "Mercado Livre",
+    )
     logger.info("[JOB %s] Processando job da plataforma %s com navegador persistente.", job_id, plataforma)
 
     try:
@@ -215,6 +221,8 @@ def process_one_job(bot, job: dict) -> None:
         raise
     except Exception as exc:
         logger.exception("[JOB %s] Job concluído com erro.", job_id)
+        if plataforma == PLATFORM_SHOPEE:
+            logger.error("[ERRO SHOPEE] falha isolada, não afeta ML | job=%s", job_id)
         send_error(job_id=job_id, mensagem_erro=str(exc))
 
 

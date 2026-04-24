@@ -2,6 +2,7 @@ import uuid
 import logging
 import os
 import sys
+import hmac
 from config import HOST, PORT, DEBUG
 from datetime import datetime, timedelta
 from functools import wraps
@@ -906,16 +907,33 @@ def worker_token_is_valid(token: str) -> bool:
         return False
 
     configured_token = (WORKER_API_TOKEN or "").strip()
-    return bool(configured_token) and token == configured_token
+    provided_token = (token or "").strip()
+    return bool(configured_token) and bool(provided_token) and hmac.compare_digest(provided_token, configured_token)
 
 
 def validate_worker_request():
     worker_token = request.headers.get("X-Worker-Token", "").strip()
+    worker_id = request.headers.get("X-Worker-Id", "").strip() or "desconhecido"
 
     if not WORKER_ENABLED:
         return jsonify({"ok": False, "erro": "Worker desabilitado."}), 503
 
+    if not worker_token:
+        app.logger.warning(
+            "[WORKER AUTH] Token ausente | worker_id=%s | ip=%s | path=%s",
+            worker_id,
+            get_client_ip(),
+            request.path,
+        )
+        return jsonify({"ok": False, "erro": "Não autorizado."}), 401
+
     if not worker_token_is_valid(worker_token):
+        app.logger.warning(
+            "[WORKER AUTH] Token inválido | worker_id=%s | ip=%s | path=%s",
+            worker_id,
+            get_client_ip(),
+            request.path,
+        )
         return jsonify({"ok": False, "erro": "Não autorizado."}), 401
 
     return None

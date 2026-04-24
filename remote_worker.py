@@ -20,6 +20,7 @@ from services.platform_utils import PLATFORM_MERCADOLIVRE, PLATFORM_SHOPEE, SUPP
 
 
 logger = logging.getLogger("remote_worker")
+WORKER_REQUEST_TIMEOUT_SECONDS = 20
 
 
 def now_str() -> str:
@@ -28,9 +29,11 @@ def now_str() -> str:
 
 def _build_headers() -> dict:
     return {
+        "Accept": "application/json",
         "Content-Type": "application/json",
         "X-Worker-Token": WORKER_API_TOKEN,
         "X-Worker-Id": WORKER_ID,
+        "User-Agent": f"afiliados-mvp-worker/{WORKER_ID}",
     }
 
 
@@ -47,15 +50,53 @@ def _validate_local_config() -> None:
         raise RuntimeError("WORKER_ID não configurado.")
 
 
+def _extract_response_error(response: requests.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+
+    if isinstance(payload, dict):
+        return (payload.get("erro") or payload.get("message") or "").strip()
+
+    return (response.text or "").strip()[:300]
+
+
+def _raise_for_worker_response(response: requests.Response, operation: str) -> dict | None:
+    if response.ok:
+        if response.headers.get("Content-Type", "").lower().startswith("application/json"):
+            return response.json()
+        return None
+
+    error_message = _extract_response_error(response)
+    status_code = response.status_code
+
+    if status_code in {401, 403}:
+        raise RuntimeError(
+            f"Autenticação do worker rejeitada em {operation} (status {status_code}). "
+            f"{error_message or 'Verifique WORKER_API_TOKEN e X-Worker-Id.'}"
+        )
+
+    if status_code >= 500:
+        raise RuntimeError(
+            f"Falha da VPS em {operation} (status {status_code}). "
+            f"{error_message or 'Erro interno no servidor.'}"
+        )
+
+    raise RuntimeError(
+        f"Falha na requisição do worker em {operation} (status {status_code}). "
+        f"{error_message or 'Resposta inválida da API.'}"
+    )
+
+
 def claim_job() -> dict | None:
     response = requests.post(
         _build_url("/api/worker/jobs/claim"),
         headers=_build_headers(),
         json={"worker_id": WORKER_ID},
-        timeout=20,
+        timeout=WORKER_REQUEST_TIMEOUT_SECONDS,
     )
-    response.raise_for_status()
-    payload = response.json()
+    payload = _raise_for_worker_response(response, "claim_job") or {}
     if not payload.get("ok"):
         raise RuntimeError(payload.get("erro") or "Falha ao claimar job")
     return payload.get("job")
@@ -71,9 +112,9 @@ def send_heartbeat(status: str, message: str | None = None) -> None:
         _build_url("/api/worker/heartbeat"),
         headers=_build_headers(),
         json=payload,
-        timeout=20,
+        timeout=WORKER_REQUEST_TIMEOUT_SECONDS,
     )
-    response.raise_for_status()
+    _raise_for_worker_response(response, "heartbeat")
 
 
 def maybe_send_heartbeat(last_sent_at: float, status: str, message: str | None = None) -> float:
@@ -86,7 +127,7 @@ def maybe_send_heartbeat(last_sent_at: float, status: str, message: str | None =
         send_heartbeat(status=status, message=message)
         logger.info("[WORKER] Heartbeat enviado | status=%s | message=%s", status, message or "-")
         return now_ts
-    except requests.RequestException:
+    except (requests.RequestException, RuntimeError):
         logger.exception("[WORKER] Falha ao enviar heartbeat.")
         return last_sent_at
 
@@ -96,9 +137,9 @@ def send_success(job_id: str, url_afiliado: str) -> None:
         _build_url(f"/api/worker/jobs/{job_id}/success"),
         headers=_build_headers(),
         json={"url_afiliado": url_afiliado},
-        timeout=20,
+        timeout=WORKER_REQUEST_TIMEOUT_SECONDS,
     )
-    response.raise_for_status()
+    _raise_for_worker_response(response, f"success job={job_id}")
 
 
 def send_error(job_id: str, mensagem_erro: str) -> None:
@@ -106,9 +147,9 @@ def send_error(job_id: str, mensagem_erro: str) -> None:
         _build_url(f"/api/worker/jobs/{job_id}/error"),
         headers=_build_headers(),
         json={"mensagem_erro": mensagem_erro[:500]},
-        timeout=20,
+        timeout=WORKER_REQUEST_TIMEOUT_SECONDS,
     )
-    response.raise_for_status()
+    _raise_for_worker_response(response, f"error job={job_id}")
 
 
 def wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at: float, plataforma: str):

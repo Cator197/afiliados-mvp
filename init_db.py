@@ -53,8 +53,15 @@ def create_tables():
         plataforma TEXT NOT NULL DEFAULT 'mercadolivre',
         status TEXT NOT NULL,
         percentual_cashback REAL NOT NULL DEFAULT 50.0,
+        descricao_item TEXT,
+        foto_item_url TEXT,
+        valor_produto REAL,
+        percentual_comissao REAL,
         valor_comissao REAL,
         valor_cashback REAL,
+        metadados_status TEXT NOT NULL DEFAULT 'pendente',
+        metadados_erro TEXT,
+        metadados_atualizado_em TEXT,
         observacoes_admin TEXT,
         criado_em TEXT NOT NULL,
         atualizado_em TEXT NOT NULL,
@@ -171,6 +178,46 @@ def ensure_links_platform_column():
         UPDATE links_gerados
         SET plataforma = 'mercadolivre'
         WHERE plataforma IS NULL OR TRIM(plataforma) = ''
+        """
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def ensure_links_metadata_columns():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("PRAGMA table_info(links_gerados)")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+
+    if "descricao_item" not in existing_columns:
+        cursor.execute("ALTER TABLE links_gerados ADD COLUMN descricao_item TEXT")
+
+    if "foto_item_url" not in existing_columns:
+        cursor.execute("ALTER TABLE links_gerados ADD COLUMN foto_item_url TEXT")
+
+    if "valor_produto" not in existing_columns:
+        cursor.execute("ALTER TABLE links_gerados ADD COLUMN valor_produto REAL")
+
+    if "percentual_comissao" not in existing_columns:
+        cursor.execute("ALTER TABLE links_gerados ADD COLUMN percentual_comissao REAL")
+
+    if "metadados_status" not in existing_columns:
+        cursor.execute("ALTER TABLE links_gerados ADD COLUMN metadados_status TEXT NOT NULL DEFAULT 'pendente'")
+
+    if "metadados_erro" not in existing_columns:
+        cursor.execute("ALTER TABLE links_gerados ADD COLUMN metadados_erro TEXT")
+
+    if "metadados_atualizado_em" not in existing_columns:
+        cursor.execute("ALTER TABLE links_gerados ADD COLUMN metadados_atualizado_em TEXT")
+
+    cursor.execute(
+        """
+        UPDATE links_gerados
+        SET metadados_status = 'pendente'
+        WHERE metadados_status IS NULL OR TRIM(metadados_status) = ''
         """
     )
 
@@ -333,6 +380,7 @@ if __name__ == "__main__":
     ensure_jobs_worker_columns()
     ensure_jobs_platform_column()
     ensure_links_platform_column()
+    ensure_links_metadata_columns()
     ensure_worker_heartbeats_table()
     ensure_cadastro_solicitacoes_table()
     ensure_password_reset_requests_table()

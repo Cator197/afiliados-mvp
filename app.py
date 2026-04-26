@@ -55,6 +55,7 @@ from repositories.links_repo import (
     get_links_by_usuario_id,
     get_all_links,
     get_link_by_id,
+    recalcular_valores,
     update_link_admin_fields,
     create_link_gerado,
     get_user_history_summary,
@@ -81,7 +82,7 @@ from repositories.password_reset_requests_repo import (
     update_password_reset_request,
 )
 from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table
-from init_db import ensure_jobs_platform_column, ensure_links_platform_column
+from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns
 from services.platform_utils import (
     PLATFORM_MERCADOLIVRE,
     PLATFORM_SHOPEE,
@@ -130,6 +131,7 @@ ensure_usuarios_password_column()
 ensure_jobs_worker_columns()
 ensure_jobs_platform_column()
 ensure_links_platform_column()
+ensure_links_metadata_columns()
 ensure_worker_heartbeats_table()
 ensure_cadastro_solicitacoes_table()
 ensure_password_reset_requests_table()
@@ -577,40 +579,30 @@ def admin_atualizar_link(link_id):
         return redirect(url_for("admin_links"))
 
     status = request.form.get("status", "").strip() or None
-    valor_comissao_raw = request.form.get("valor_comissao", "").strip()
     percentual_cashback_raw = request.form.get("percentual_cashback", "").strip()
     observacoes_admin = request.form.get("observacoes_admin", "").strip() or None
 
     if status and status not in ADMIN_LINK_STATUS_VALIDOS:
         return redirect(url_for("admin_links", erro="Status não permitido."))
 
-    valor_comissao, erro_comissao = parse_decimal_input(valor_comissao_raw, "Comissão")
-    if erro_comissao:
-        return redirect(url_for("admin_links", erro=erro_comissao))
-    if valor_comissao is not None and valor_comissao < 0:
-        return redirect(url_for("admin_links", erro="Comissão não pode ser negativa."))
-
     percentual_cashback, erro_cashback = parse_decimal_input(percentual_cashback_raw, "Cashback")
     if erro_cashback:
         return redirect(url_for("admin_links", erro=erro_cashback))
     if percentual_cashback is not None and not (0 <= percentual_cashback <= 100):
         return redirect(url_for("admin_links", erro="Cashback deve estar entre 0 e 100."))
-
-    valor_cashback = None
-
-    percentual_base = percentual_cashback if percentual_cashback is not None else link["percentual_cashback"]
-
-    if valor_comissao is not None and percentual_base is not None:
-        valor_cashback = round(valor_comissao * percentual_base / 100, 2)
+    atualizado_em = now_str()
 
     update_link_admin_fields(
         link_id=link_id,
         status=status,
-        valor_comissao=valor_comissao,
         percentual_cashback=percentual_cashback,
-        valor_cashback=valor_cashback,
         observacoes_admin=observacoes_admin,
-        atualizado_em=now_str()
+        atualizado_em=atualizado_em
+    )
+    recalcular_valores(
+        link_id=link_id,
+        percentual_cashback=percentual_cashback,
+        atualizado_em=atualizado_em,
     )
 
     return redirect(url_for("admin_links", sucesso="Link atualizado com sucesso."))
@@ -1502,8 +1494,15 @@ def listar_links_usuario(codigo_usuario):
                 "plataforma_label": get_platform_label(link["plataforma"]),
                 "status": link["status"],
                 "percentual_cashback": link["percentual_cashback"],
+                "descricao_item": link["descricao_item"],
+                "foto_item_url": link["foto_item_url"],
+                "valor_produto": link["valor_produto"],
+                "percentual_comissao": link["percentual_comissao"],
                 "valor_comissao": link["valor_comissao"],
                 "valor_cashback": link["valor_cashback"],
+                "metadados_status": link["metadados_status"],
+                "metadados_erro": link["metadados_erro"],
+                "metadados_atualizado_em": link["metadados_atualizado_em"],
                 "observacoes_admin": link["observacoes_admin"],
                 "criado_em": link["criado_em"],
                 "atualizado_em": link["atualizado_em"]

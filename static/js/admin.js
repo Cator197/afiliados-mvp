@@ -1,4 +1,27 @@
 (function () {
+    function garantirAvisoGlobal() {
+        let box = document.getElementById('adminFeedbackBox');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'adminFeedbackBox';
+            box.className = 'message-box is-hidden';
+            box.setAttribute('role', 'status');
+            box.setAttribute('aria-live', 'polite');
+
+            const container = document.querySelector('.container');
+            if (container) {
+                container.insertBefore(box, container.children[1] || null);
+            }
+        }
+        return box;
+    }
+
+    function mostrarAvisoGlobal(texto, tipo) {
+        const box = garantirAvisoGlobal();
+        box.className = `message-box alert alert-${tipo}`;
+        box.textContent = texto;
+    }
+
     function handleQuickStatusButtons(form) {
         const quickButtons = form.querySelectorAll('.btn-quick-status');
         const statusSelect = form.querySelector('select[name="status"]');
@@ -46,8 +69,21 @@
 
             if (submitter) {
                 submitter.dataset.defaultText = submitter.dataset.defaultText || submitter.textContent;
-                submitter.textContent = 'Salvando...';
+                submitter.textContent = 'Salvando atualização...';
             }
+
+            mostrarAvisoGlobal('Salvando atualização do link. Aguarde a confirmação da página.', 'loading');
+        });
+    }
+
+    function handleFilterLoading() {
+        const filterForm = document.querySelector('form[data-admin-filter="true"]');
+        if (!filterForm) {
+            return;
+        }
+
+        filterForm.addEventListener('submit', function () {
+            mostrarAvisoGlobal('Aplicando filtros e atualizando a lista...', 'loading');
         });
     }
 
@@ -57,5 +93,7 @@
             handleQuickStatusButtons(form);
             handleSubmitFeedback(form);
         });
+
+        handleFilterLoading();
     };
 })();

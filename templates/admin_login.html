@@ -9,10 +9,10 @@
 <body>
     <div class="container container-sm">
         <h1>Painel administrativo</h1>
-        <p class="subtitle">Faça login para gerenciar os links e cashback.</p>
+        <p class="subtitle">Faça login para gerenciar links e cashback com segurança.</p>
 
         {% if erro %}
-            <div class="message-box message-error">
+            <div class="message-box alert alert-error" role="alert" aria-live="assertive">
                 {{ erro }}
             </div>
         {% endif %}
@@ -20,12 +20,12 @@
         <form method="POST" action="/admin/login">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="input-group">
-                <label for="username">Usuário</label>
+                <label for="username">Usuário administrador</label>
                 <input type="text" id="username" name="username" required>
             </div>
 
             <div class="input-group">
-                <label for="password">Senha</label>
+                <label for="password">Senha de acesso</label>
                 <input type="password" id="password" name="password" required>
             </div>
 

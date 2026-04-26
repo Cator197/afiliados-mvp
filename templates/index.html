@@ -20,17 +20,17 @@
         </div>
 
         <div class="input-group">
-            <label for="senha">Senha</label>
+            <label for="senha">Senha de acesso</label>
             <input type="password" id="senha" placeholder="Digite sua senha" autocomplete="current-password">
         </div>
 
         <div class="actions">
-            <button id="btnEntrar">Entrar</button>
+            <button id="btnEntrar" type="button">Entrar</button>
             <a href="{{ url_for('pagina_solicitar_cadastro') }}" class="btn btn-secondary">Solicitar cadastro</a>
             <a href="{{ url_for('pagina_esqueci_senha') }}" class="btn btn-secondary">Esqueci minha senha</a>
         </div>
 
-        <div id="mensagem" class="message-box is-hidden" role="status" aria-live="polite"></div>
+        <div id="mensagem" class="message-box alert alert-info" role="status" aria-live="polite">Informe seu ID e senha para entrar.</div>
     </div>
 
     <script>
@@ -39,31 +39,33 @@
         const inputSenha = document.getElementById("senha");
         const mensagem = document.getElementById("mensagem");
 
-        function mostrarMensagem(texto, erro = false) {
-            mensagem.className = erro ? "message-box message-error" : "message-box";
+        function mostrarMensagem(texto, tipo = "info") {
+            mensagem.className = `message-box alert alert-${tipo}`;
             mensagem.textContent = texto;
+            mensagem.setAttribute("role", tipo === "error" ? "alert" : "status");
+            mensagem.setAttribute("aria-live", tipo === "error" ? "assertive" : "polite");
         }
 
         function mensagemLoginAmigavel(erro) {
             const texto = (erro || "").toLowerCase();
 
             if (texto.includes("não encontrado") || texto.includes("nao encontrado") || texto.includes("não existe") || texto.includes("nao existe")) {
-                return "Não encontramos esse ID de usuário. Confira o ID recebido e tente novamente. Se precisar, solicite cadastro.";
+                return "Não encontramos esse ID de usuário. Próximo passo: confira o ID e tente novamente.";
             }
             if (texto.includes("senha") && (texto.includes("inválida") || texto.includes("invalida") || texto.includes("incorreta"))) {
-                return "Senha inválida. Revise a senha e tente novamente.";
+                return "Senha inválida. Próximo passo: revise sua senha e tente novamente.";
             }
             if (texto.includes("bloqueado") || texto.includes("inativo")) {
-                return "Seu acesso está indisponível no momento. Entre em contato com o suporte para liberar o login.";
+                return "Seu acesso está indisponível no momento. Próximo passo: fale com o suporte.";
             }
 
-            return erro || "Não foi possível realizar o login agora. Revise seus dados e tente novamente.";
+            return erro || "Não foi possível fazer login agora. Próximo passo: revise os dados e tente novamente.";
         }
 
         function obterCodigoUsuario() {
             const codigo_usuario = inputCodigo.value.trim().toUpperCase();
             if (!codigo_usuario) {
-                mostrarMensagem("Informe o ID de usuário recebido para continuar.", true);
+                mostrarMensagem("Informe o ID de usuário para continuar.", "warning");
                 return null;
             }
             return codigo_usuario;
@@ -71,18 +73,17 @@
 
         btnEntrar.addEventListener("click", async () => {
             const codigo_usuario = obterCodigoUsuario();
-            if (!codigo_usuario) {
-                return;
-            }
+            if (!codigo_usuario) return;
 
             const senha = inputSenha.value;
             if (!senha) {
-                mostrarMensagem("Digite sua senha para continuar.", true);
+                mostrarMensagem("Digite sua senha para continuar.", "warning");
                 return;
             }
 
             btnEntrar.disabled = true;
-            mostrarMensagem("Validando seu acesso... Aguarde.");
+            btnEntrar.textContent = "Validando acesso...";
+            mostrarMensagem("Validando seu acesso. Aguarde...", "loading");
 
             try {
                 const resp = await fetch("/api/login", {
@@ -96,28 +97,25 @@
                 const data = await resp.json();
 
                 if (data.ok) {
-                    mostrarMensagem("Login realizado com sucesso. Redirecionando...");
+                    mostrarMensagem("Login realizado. Redirecionando...", "success");
                     window.location.href = data.redirect_to || `/usuario/${encodeURIComponent(codigo_usuario)}`;
                 } else {
-                    mostrarMensagem(mensagemLoginAmigavel(data.erro), true);
+                    mostrarMensagem(mensagemLoginAmigavel(data.erro), "error");
                 }
             } catch (e) {
-                mostrarMensagem("Não foi possível se comunicar com o servidor. Tente novamente em alguns instantes.", true);
+                mostrarMensagem("Não foi possível se comunicar com o servidor. Tente novamente em instantes.", "error");
             } finally {
                 btnEntrar.disabled = false;
+                btnEntrar.textContent = "Entrar";
             }
         });
 
         inputSenha.addEventListener("keydown", function(event) {
-            if (event.key === "Enter") {
-                btnEntrar.click();
-            }
+            if (event.key === "Enter") btnEntrar.click();
         });
 
         inputCodigo.addEventListener("keydown", function(event) {
-            if (event.key === "Enter") {
-                btnEntrar.click();
-            }
+            if (event.key === "Enter") btnEntrar.click();
         });
     </script>
 </body>

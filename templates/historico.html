@@ -21,7 +21,7 @@
             <a class="btn btn-secondary" href="{{ url_for('user_logout') }}">Sair</a>
         </div>
 
-        <div id="mensagem" class="message-box is-hidden"></div>
+        <div id="mensagem" class="message-box alert alert-info" role="status" aria-live="polite">Carregando histórico...</div>
 
         <section class="history-summary" id="historySummary">
             <div class="summary-card">
@@ -79,9 +79,11 @@
         const summaryValorPendente = document.getElementById("summaryValorPendente");
         const summaryValorPago = document.getElementById("summaryValorPago");
 
-        function mostrarErro(texto) {
-            mensagem.className = "message-box message-error";
+        function mostrarMensagem(texto, tipo = "info") {
+            mensagem.className = `message-box alert alert-${tipo}`;
             mensagem.textContent = texto;
+            mensagem.setAttribute("role", tipo === "error" ? "alert" : "status");
+            mensagem.setAttribute("aria-live", tipo === "error" ? "assertive" : "polite");
         }
 
         const STATUS_MAP = {
@@ -179,8 +181,8 @@
                 const resumoData = await respResumo.json();
 
                 if (!data.ok || !resumoData.ok) {
-                    mostrarErro(data.erro || resumoData.erro || "Erro ao carregar histórico.");
-                    historicoBody.innerHTML = `<tr><td colspan="7">Não foi possível carregar os dados.</td></tr>`;
+                    mostrarMensagem(data.erro || resumoData.erro || "Erro ao carregar histórico.", "error");
+                    historicoBody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><strong>Não foi possível carregar os dados.</strong><p>Próximo passo: atualize a página ou tente novamente em instantes.</p></div></td></tr>`;
                     return;
                 }
 
@@ -189,18 +191,22 @@
                 const links = data.links || [];
 
                 if (!links.length) {
+                    mostrarMensagem("Você ainda não gerou links. Próximo passo: volte para a tela anterior e gere seu primeiro link.", "warning");
                     historicoBody.innerHTML = `
                         <tr>
                             <td colspan="7">
                                 <div class="empty-state">
-                                    <strong>Você ainda não gerou links.</strong>
-                                    <p>Quando você gerar seu primeiro link afiliado, ele aparecerá aqui com o status e o cashback.</p>
+                                    <strong>Histórico vazio.</strong>
+                                    <p>Nenhum link foi gerado até agora.</p>
+                                    <p>Próximo passo: clique em <em>Gerar novo link</em> para começar.</p>
                                 </div>
                             </td>
                         </tr>
                     `;
                     return;
                 }
+
+                mostrarMensagem(`Histórico atualizado com ${links.length} registro(s).`, "success");
 
                 historicoBody.innerHTML = links.map(link => `
                     <tr>
@@ -223,8 +229,8 @@
                 `).join("");
 
             } catch (e) {
-                mostrarErro("Erro de comunicação com o servidor.");
-                historicoBody.innerHTML = `<tr><td colspan="7">Erro ao carregar histórico.</td></tr>`;
+                mostrarMensagem("Erro de comunicação com o servidor.", "error");
+                historicoBody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><strong>Erro ao carregar histórico.</strong><p>Próximo passo: atualize a página e tente novamente.</p></div></td></tr>`;
             }
         }
 

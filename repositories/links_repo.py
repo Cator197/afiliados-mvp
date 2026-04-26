@@ -225,7 +225,7 @@ def claim_next_metadata_job(atualizado_em):
         conn.close()
 
 
-def enqueue_metadata_refresh(link_id, atualizado_em):
+def reenfileirar_metadados(link_id, atualizado_em):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -234,15 +234,19 @@ def enqueue_metadata_refresh(link_id, atualizado_em):
         UPDATE links_gerados
         SET metadados_status = 'pendente',
             metadados_erro = NULL,
-            metadados_atualizado_em = NULL,
+            metadados_atualizado_em = ?,
             atualizado_em = ?
         WHERE id = ?
         """,
-        (atualizado_em, link_id),
+        (atualizado_em, atualizado_em, link_id),
     )
 
     conn.commit()
     conn.close()
+
+
+def enqueue_metadata_refresh(link_id, atualizado_em):
+    reenfileirar_metadados(link_id=link_id, atualizado_em=atualizado_em)
 
 
 def recalcular_valores(link_id, percentual_cashback=None, atualizado_em=None):

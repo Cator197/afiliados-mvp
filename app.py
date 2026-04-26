@@ -56,7 +56,7 @@ from repositories.links_repo import (
     get_all_links,
     get_link_by_id,
     claim_next_metadata_job,
-    enqueue_metadata_refresh,
+    reenfileirar_metadados,
     recalcular_valores,
     update_link_admin_fields,
     update_product_metadata,
@@ -650,7 +650,7 @@ def admin_atualizar_infos_link(link_id):
     if not link:
         return jsonify({"ok": False, "erro": "Link não encontrado."}), 404
 
-    enqueue_metadata_refresh(
+    reenfileirar_metadados(
         link_id=link_id,
         atualizado_em=now_str(),
     )
@@ -659,7 +659,7 @@ def admin_atualizar_infos_link(link_id):
         "ok": True,
         "link_id": link_id,
         "metadados_status": "pendente",
-        "mensagem": "Atualização enviada para a fila.",
+        "mensagem": "Item enviado para atualização de informações.",
     })
 
 

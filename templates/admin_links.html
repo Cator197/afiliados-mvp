@@ -104,6 +104,10 @@
                         <th>Link afiliado</th>
                         <th>Plataforma</th>
                         <th>Status</th>
+                        <th>Descrição do item</th>
+                        <th>Foto do item</th>
+                        <th>Valor do produto (R$)</th>
+                        <th>% Comissão</th>
                         <th>Comissão calculada (R$)</th>
                         <th>% Cashback</th>
                         <th>Cashback calculado (R$)</th>
@@ -160,6 +164,18 @@
                                             <option value="cashback_pago" {% if link.status == 'cashback_pago' %}selected{% endif %}>cashback_pago</option>
                                         </select>
                                     </td>
+                                    <td data-label="Descrição do item" class="col-notes">
+                                        <input type="text" class="field-compact" name="descricao_item" value="{{ link.descricao_item if link.descricao_item else '' }}" placeholder="Descrição do item">
+                                    </td>
+                                    <td data-label="Foto do item">
+                                        <input type="text" class="field-compact" name="foto_item_url" value="{{ link.foto_item_url if link.foto_item_url else '' }}" placeholder="URL da foto">
+                                    </td>
+                                    <td data-label="Valor do produto (R$)" class="col-value">
+                                        <input type="text" class="field-compact" name="valor_produto" value="{{ link.valor_produto if link.valor_produto is not none else '' }}" placeholder="Ex: 199.90">
+                                    </td>
+                                    <td data-label="% Comissão" class="col-value">
+                                        <input type="text" class="field-compact field-percent" name="percentual_comissao" value="{{ link.percentual_comissao if link.percentual_comissao is not none else '' }}" placeholder="Ex: 12.5">
+                                    </td>
                                     <td data-label="Comissão calculada (R$)" class="col-value">
                                         {% if link.valor_comissao is not none %}
                                             <span class="cashback-highlight">R$ {{ "%.2f"|format(link.valor_comissao) }}</span>
@@ -189,7 +205,8 @@
                                     </td>
                                     <td data-label="Ação">
                                         <div class="actions actions-row no-margin">
-                                            <button type="submit" data-default-text="Salvar">Salvar</button>
+                                            <button type="submit" name="acao" value="salvar" data-default-text="Salvar">Salvar</button>
+                                            <button type="submit" class="btn btn-secondary" name="acao" value="recalcular">Recalcular valores</button>
                                             <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="compra_confirmada" data-confirm-message="Confirmar compra deste link?">Confirmar compra</button>
                                             <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="compra_nao_confirmada" data-confirm-message="Marcar como compra não confirmada?">Não confirmada</button>
                                             <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="cashback_pago" data-confirm-message="Marcar cashback como pago?">Marcar cashback pago</button>
@@ -200,7 +217,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="12"><div class="empty-state"><strong>Nenhum link encontrado para os filtros atuais.</strong><p>Próximo passo: ajuste os filtros ou clique em <em>Limpar filtros</em>.</p></div></td>
+                            <td colspan="16"><div class="empty-state"><strong>Nenhum link encontrado para os filtros atuais.</strong><p>Próximo passo: ajuste os filtros ou clique em <em>Limpar filtros</em>.</p></div></td>
                         </tr>
                     {% endif %}
                 </tbody>

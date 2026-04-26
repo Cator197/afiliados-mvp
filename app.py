@@ -57,6 +57,7 @@ from repositories.links_repo import (
     get_link_by_id,
     recalcular_valores,
     update_link_admin_fields,
+    update_product_metadata,
     create_link_gerado,
     get_user_history_summary,
 )
@@ -581,6 +582,11 @@ def admin_atualizar_link(link_id):
     status = request.form.get("status", "").strip() or None
     percentual_cashback_raw = request.form.get("percentual_cashback", "").strip()
     observacoes_admin = request.form.get("observacoes_admin", "").strip() or None
+    descricao_item = request.form.get("descricao_item", "").strip() or None
+    foto_item_url = request.form.get("foto_item_url", "").strip() or None
+    valor_produto_raw = request.form.get("valor_produto", "").strip()
+    percentual_comissao_raw = request.form.get("percentual_comissao", "").strip()
+    acao = request.form.get("acao", "salvar").strip()
 
     if status and status not in ADMIN_LINK_STATUS_VALIDOS:
         return redirect(url_for("admin_links", erro="Status não permitido."))
@@ -590,7 +596,29 @@ def admin_atualizar_link(link_id):
         return redirect(url_for("admin_links", erro=erro_cashback))
     if percentual_cashback is not None and not (0 <= percentual_cashback <= 100):
         return redirect(url_for("admin_links", erro="Cashback deve estar entre 0 e 100."))
+
+    valor_produto, erro_valor_produto = parse_decimal_input(valor_produto_raw, "Valor do produto")
+    if erro_valor_produto:
+        return redirect(url_for("admin_links", erro=erro_valor_produto))
+    if valor_produto is not None and valor_produto < 0:
+        return redirect(url_for("admin_links", erro="Valor do produto deve ser maior ou igual a 0."))
+
+    percentual_comissao, erro_percentual_comissao = parse_decimal_input(percentual_comissao_raw, "Percentual de comissão")
+    if erro_percentual_comissao:
+        return redirect(url_for("admin_links", erro=erro_percentual_comissao))
+    if percentual_comissao is not None and not (0 <= percentual_comissao <= 100):
+        return redirect(url_for("admin_links", erro="Percentual de comissão deve estar entre 0 e 100."))
+
     atualizado_em = now_str()
+
+    update_product_metadata(
+        link_id=link_id,
+        descricao_item=descricao_item,
+        foto_item_url=foto_item_url,
+        valor_produto=valor_produto,
+        percentual_comissao=percentual_comissao,
+        atualizado_em=atualizado_em,
+    )
 
     update_link_admin_fields(
         link_id=link_id,
@@ -605,7 +633,8 @@ def admin_atualizar_link(link_id):
         atualizado_em=atualizado_em,
     )
 
-    return redirect(url_for("admin_links", sucesso="Link atualizado com sucesso."))
+    mensagem_sucesso = "Valores recalculados com sucesso." if acao == "recalcular" else "Link atualizado com sucesso."
+    return redirect(url_for("admin_links", sucesso=mensagem_sucesso))
 
 
 @app.route("/admin/solicitacoes", methods=["GET"])

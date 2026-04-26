@@ -15,10 +15,10 @@
 
         <div class="actions">
             <a class="btn" href="{{ url_for('pagina_usuario', codigo_usuario=usuario.codigo_usuario) }}">Gerar novo link</a>
-            <a class="btn" href="{{ url_for('user_logout') }}">Sair</a>
+            <a class="btn btn-secondary" href="{{ url_for('user_logout') }}">Sair</a>
         </div>
 
-        <div id="mensagem" class="message-box" style="display:none;"></div>
+        <div id="mensagem" class="message-box is-hidden"></div>
 
         <section class="history-summary" id="historySummary">
             <div class="summary-card">
@@ -76,6 +76,11 @@
         const summaryValorPendente = document.getElementById("summaryValorPendente");
         const summaryValorPago = document.getElementById("summaryValorPago");
 
+        function mostrarErro(texto) {
+            mensagem.className = "message-box message-error";
+            mensagem.textContent = texto;
+        }
+
         function badgeHtml(status) {
             return `<span class="badge ${status}">${status}</span>`;
         }
@@ -111,7 +116,7 @@
         function formatarUrl(url) {
             if (!url) return "-";
 
-            const limite = 50; // tamanho máximo visível
+            const limite = 50;
 
             if (url.length <= limite) return url;
 
@@ -134,8 +139,7 @@
                 const resumoData = await respResumo.json();
 
                 if (!data.ok || !resumoData.ok) {
-                    mensagem.style.display = "block";
-                    mensagem.textContent = data.erro || resumoData.erro || "Erro ao carregar histórico.";
+                    mostrarErro(data.erro || resumoData.erro || "Erro ao carregar histórico.");
                     historicoBody.innerHTML = `<tr><td colspan="6">Não foi possível carregar os dados.</td></tr>`;
                     return;
                 }
@@ -153,13 +157,13 @@
                     <tr>
                         <td>${link.criado_em || "-"}</td>
                         <td>
-                            <a href="${link.url_original}" target="_blank">
+                            <a href="${link.url_original}" target="_blank" class="table-link">
                                 ${formatarUrl(link.url_original)}
                             </a>
                         </td>
                         <td>
                             ${link.url_afiliado
-                                ? `<a href="${link.url_afiliado}" target="_blank">${link.url_afiliado}</a>`
+                                ? `<a href="${link.url_afiliado}" target="_blank" class="table-link">${link.url_afiliado}</a>`
                                 : "-"}
                         </td>
                         <td>${plataformaBadgeHtml(link.plataforma, link.plataforma_label)}</td>
@@ -170,8 +174,7 @@
                 `).join("");
 
             } catch (e) {
-                mensagem.style.display = "block";
-                mensagem.textContent = "Erro de comunicação com o servidor.";
+                mostrarErro("Erro de comunicação com o servidor.");
                 historicoBody.innerHTML = `<tr><td colspan="6">Erro ao carregar histórico.</td></tr>`;
             }
         }

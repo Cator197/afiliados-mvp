@@ -29,7 +29,7 @@
             <a href="{{ url_for('pagina_esqueci_senha') }}" class="btn btn-secondary">Esqueci minha senha</a>
         </div>
 
-        <div id="mensagem" class="message-box" style="display:none;"></div>
+        <div id="mensagem" class="message-box is-hidden"></div>
     </div>
 
     <script>
@@ -39,10 +39,8 @@
         const mensagem = document.getElementById("mensagem");
 
         function mostrarMensagem(texto, erro = false) {
-            mensagem.style.display = "block";
+            mensagem.className = erro ? "message-box message-error" : "message-box";
             mensagem.textContent = texto;
-            mensagem.style.borderColor = erro ? "#f0b7b7" : "#e4e8ee";
-            mensagem.style.background = erro ? "#fff3f3" : "#f7f8fa";
         }
 
         function obterCodigoUsuario() {

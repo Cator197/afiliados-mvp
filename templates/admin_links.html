@@ -7,18 +7,18 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container" style="max-width: 1400px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div class="container container-xl">
+        <div class="topbar">
             <div>
                 <h1>Painel administrativo</h1>
                 <p class="subtitle">Logado como {{ admin_username }}</p>
             </div>
-            <div class="actions">
+            <div class="actions no-margin">
                 <a class="btn" href="{{ url_for('admin_criar_usuario') }}">Criar usuário</a>
                 <a class="btn" href="{{ url_for('admin_usuarios') }}">Gerenciar usuários</a>
                 <a class="btn" href="{{ url_for('admin_solicitacoes') }}">Solicitações de cadastro</a>
                 <a class="btn" href="{{ url_for('admin_reset_senhas') }}">Reset de senha</a>
-                <a class="btn" href="{{ url_for('admin_logout') }}">Sair</a>
+                <a class="btn btn-secondary" href="{{ url_for('admin_logout') }}">Sair</a>
             </div>
         </div>
 
@@ -27,25 +27,25 @@
         </div>
 
         {% if erro %}
-            <div class="message-box" style="background:#fff3f3;border-color:#f0b7b7;color:#8a1f1f;">
+            <div class="message-box message-error">
                 {{ erro }}
             </div>
         {% endif %}
 
         {% if sucesso %}
-            <div class="message-box" style="background:#e6f7ea;border-color:#b6e3c1;color:#1f6b33;">
+            <div class="message-box message-success">
                 {{ sucesso }}
             </div>
         {% endif %}
 
-        <form method="GET" action="{{ url_for('admin_links') }}" class="message-box">
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;">
-                <div class="input-group" style="margin-bottom:0;">
+        <form method="GET" action="{{ url_for('admin_links') }}" class="card">
+            <div class="filters-grid">
+                <div class="input-group no-margin">
                     <label for="codigo_usuario">Filtrar por ID do usuário</label>
                     <input type="text" id="codigo_usuario" name="codigo_usuario" value="{{ filtros.codigo_usuario }}">
                 </div>
 
-                <div class="input-group" style="margin-bottom:0;">
+                <div class="input-group no-margin">
                     <label for="status">Filtrar por status</label>
                     <select id="status" name="status">
                         <option value="">Todos</option>
@@ -56,7 +56,7 @@
                     </select>
                 </div>
 
-                <div class="input-group" style="margin-bottom:0;">
+                <div class="input-group no-margin">
                     <label for="plataforma">Filtrar por plataforma</label>
                     <select id="plataforma" name="plataforma">
                         <option value="">Todas</option>
@@ -65,16 +65,16 @@
                     </select>
                 </div>
 
-                <div class="actions" style="margin-top:0;">
+                <div class="actions no-margin">
                     <input type="hidden" name="limit" value="{{ limit }}">
                     <button type="submit">Filtrar</button>
                 </div>
             </div>
         </form>
 
-        <div class="message-box" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div class="card pagination-bar">
             <span class="small">Total: {{ total }} registros · Página {{ page }} de {{ total_pages }}</span>
-            <div class="actions" style="margin-top:0;">
+            <div class="actions no-margin">
                 {% if has_prev %}
                     <a class="btn" href="{{ url_for('admin_links', page=page-1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma) }}">Anterior</a>
                 {% else %}
@@ -118,13 +118,13 @@
                                         <span class="small">{{ link.codigo_usuario }}</span>
                                     </td>
                                     <td>
-                                        <a href="{{ link.url_original }}" target="_blank">
+                                        <a href="{{ link.url_original }}" target="_blank" class="table-link">
                                             {{ link.url_original[:50] ~ '...' if link.url_original|length > 50 else link.url_original }}
                                         </a>
                                     </td>
                                     <td>
                                         {% if link.url_afiliado %}
-                                            <a href="{{ link.url_afiliado }}" target="_blank">{{ link.url_afiliado }}</a>
+                                            <a href="{{ link.url_afiliado }}" target="_blank" class="table-link">{{ link.url_afiliado }}</a>
                                         {% else %}
                                             -
                                         {% endif %}
@@ -134,7 +134,7 @@
                                             {{ platform_labels.get(link.plataforma, "Não informado") }}
                                         </span>
                                     </td>
-                                    <td style="min-width:180px;">
+                                    <td class="col-status">
                                         <select name="status">
                                             <option value="aguardando_verificacao" {% if link.status == 'aguardando_verificacao' %}selected{% endif %}>aguardando_verificacao</option>
                                             <option value="compra_confirmada" {% if link.status == 'compra_confirmada' %}selected{% endif %}>compra_confirmada</option>
@@ -142,10 +142,10 @@
                                             <option value="cashback_pago" {% if link.status == 'cashback_pago' %}selected{% endif %}>cashback_pago</option>
                                         </select>
                                     </td>
-                                    <td style="min-width:120px;">
+                                    <td class="col-value">
                                         <input type="text" name="valor_comissao" value="{{ link.valor_comissao if link.valor_comissao is not none else '' }}" placeholder="0.00">
                                     </td>
-                                    <td style="min-width:120px;">
+                                    <td class="col-value">
                                         <input type="text" name="percentual_cashback" value="{{ link.percentual_cashback if link.percentual_cashback is not none else '' }}" placeholder="50">
                                     </td>
                                     <td>
@@ -155,7 +155,7 @@
                                             -
                                         {% endif %}
                                     </td>
-                                    <td style="min-width:200px;">
+                                    <td class="col-notes">
                                         <input type="text" name="observacoes_admin" value="{{ link.observacoes_admin if link.observacoes_admin else '' }}" placeholder="Observação">
                                     </td>
                                     <td>
@@ -183,8 +183,7 @@
 
             if (!data.ok) {
                 box.textContent = "Não foi possível verificar o status do robô.";
-                box.style.background = "#fff3f3";
-                box.style.borderColor = "#f0b7b7";
+                box.className = "message-box message-error";
                 return;
             }
 
@@ -194,22 +193,17 @@
             box.innerHTML = `<strong>Status do robô:</strong> ${status}<br><span class="small">${message}</span>`;
 
             if (status === "online") {
-                box.style.background = "#e6f7ea";
-                box.style.borderColor = "#b6e3c1";
+                box.className = "message-box message-success";
             } else if (status === "aguardando_login_manual") {
-                box.style.background = "#fff8e6";
-                box.style.borderColor = "#f2d48a";
+                box.className = "message-box message-warning";
             } else if (status === "erro_recuperacao") {
-                box.style.background = "#fff3f3";
-                box.style.borderColor = "#f0b7b7";
+                box.className = "message-box message-error";
             } else {
-                box.style.background = "#f7f8fa";
-                box.style.borderColor = "#e4e8ee";
+                box.className = "message-box";
             }
         } catch (e) {
             box.textContent = "Erro ao consultar o status do robô.";
-            box.style.background = "#fff3f3";
-            box.style.borderColor = "#f0b7b7";
+            box.className = "message-box message-error";
         }
     }
 

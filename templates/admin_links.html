@@ -38,7 +38,11 @@
             </div>
         {% endif %}
 
-        <form method="GET" action="{{ url_for('admin_links') }}" class="card">
+        <form method="GET" action="{{ url_for('admin_links') }}" class="card filters-card">
+            <div class="filters-header">
+                <strong>Filtros</strong>
+                <span class="small">Use os filtros para acelerar a conferência manual.</span>
+            </div>
             <div class="filters-grid">
                 <div class="input-group no-margin">
                     <label for="codigo_usuario">Filtrar por ID do usuário</label>
@@ -68,6 +72,7 @@
                 <div class="actions no-margin">
                     <input type="hidden" name="limit" value="{{ limit }}">
                     <button type="submit">Filtrar</button>
+                    <a class="btn btn-secondary" href="{{ url_for('admin_links', limit=limit) }}">Limpar filtros</a>
                 </div>
             </div>
         </form>
@@ -99,8 +104,9 @@
                         <th>Link afiliado</th>
                         <th>Plataforma</th>
                         <th>Status</th>
+                        <th>Comissão recebida (R$)</th>
                         <th>% Cashback</th>
-                        <th>Cashback</th>
+                        <th>Cashback calculado (R$)</th>
                         <th>Observações</th>
                         <th>Ação</th>
                     </tr>
@@ -108,58 +114,75 @@
                 <tbody>
                     {% if links %}
                         {% for link in links %}
-                            <tr class="{% if link.status == 'compra_nao_confirmada' %}row-warning{% elif link.status == 'aguardando_verificacao' %}row-neutral{% endif %}">
+                            <tr class="
+                                {% if link.status == 'aguardando_verificacao' %}row-needs-action
+                                {% elif link.status == 'compra_confirmada' %}row-ready-payment
+                                {% elif link.status == 'cashback_pago' %}row-completed
+                                {% elif link.status == 'compra_nao_confirmada' %}row-warning{% endif %}">
                                 <form method="POST" action="{{ url_for('admin_atualizar_link', link_id=link.id) }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <td>{{ link.id }}</td>
-                                    <td>{{ link.criado_em }}</td>
-                                    <td>
+                                    <td data-label="ID">{{ link.id }}</td>
+                                    <td data-label="Data">{{ link.criado_em }}</td>
+                                    <td data-label="Usuário">
                                         <strong>{{ link.nome }}</strong><br>
                                         <span class="small">{{ link.codigo_usuario }}</span>
                                     </td>
-                                    <td>
+                                    <td data-label="URL original">
                                         <a href="{{ link.url_original }}" target="_blank" class="table-link">
                                             {{ link.url_original[:50] ~ '...' if link.url_original|length > 50 else link.url_original }}
                                         </a>
                                     </td>
-                                    <td>
+                                    <td data-label="Link afiliado">
                                         {% if link.url_afiliado %}
                                             <a href="{{ link.url_afiliado }}" target="_blank" class="table-link">{{ link.url_afiliado }}</a>
                                         {% else %}
                                             -
                                         {% endif %}
                                     </td>
-                                    <td>
+                                    <td data-label="Plataforma">
                                         <span class="badge platform-badge {{ link.plataforma or 'nao_informado' }}">
                                             {{ platform_labels.get(link.plataforma, "Não informado") }}
                                         </span>
                                     </td>
-                                    <td class="col-status">
-                                        <select name="status">
+                                    <td data-label="Status" class="col-status">
+                                        <span class="badge status-badge {{ link.status }}">{{ link.status }}</span>
+                                        {% if link.status == 'aguardando_verificacao' %}
+                                            <span class="status-help status-help-alert">Ação pendente: conferir compra.</span>
+                                        {% elif link.status == 'compra_confirmada' %}
+                                            <span class="status-help">Pronto para avançar para pagamento.</span>
+                                        {% elif link.status == 'cashback_pago' %}
+                                            <span class="status-help">Fluxo concluído.</span>
+                                        {% endif %}
+                                        <select name="status" class="field-compact">
                                             <option value="aguardando_verificacao" {% if link.status == 'aguardando_verificacao' %}selected{% endif %}>aguardando_verificacao</option>
                                             <option value="compra_confirmada" {% if link.status == 'compra_confirmada' %}selected{% endif %}>compra_confirmada</option>
                                             <option value="compra_nao_confirmada" {% if link.status == 'compra_nao_confirmada' %}selected{% endif %}>compra_nao_confirmada</option>
                                             <option value="cashback_pago" {% if link.status == 'cashback_pago' %}selected{% endif %}>cashback_pago</option>
                                         </select>
                                     </td>
-                                    <td class="col-value">
-                                        <input type="text" name="valor_comissao" value="{{ link.valor_comissao if link.valor_comissao is not none else '' }}" placeholder="0.00">
+                                    <td data-label="Comissão recebida (R$)" class="col-value">
+                                        <input type="text" class="field-compact field-money" name="valor_comissao" value="{{ link.valor_comissao if link.valor_comissao is not none else '' }}" placeholder="Ex: 120,50">
                                     </td>
-                                    <td class="col-value">
-                                        <input type="text" name="percentual_cashback" value="{{ link.percentual_cashback if link.percentual_cashback is not none else '' }}" placeholder="50">
+                                    <td data-label="% Cashback" class="col-value">
+                                        <input type="text" class="field-compact field-percent" name="percentual_cashback" value="{{ link.percentual_cashback if link.percentual_cashback is not none else '' }}" placeholder="Ex: 50">
                                     </td>
-                                    <td>
+                                    <td data-label="Cashback calculado (R$)">
                                         {% if link.valor_cashback is not none %}
-                                            R$ {{ "%.2f"|format(link.valor_cashback) }}
+                                            <span class="cashback-highlight">R$ {{ "%.2f"|format(link.valor_cashback) }}</span>
                                         {% else %}
                                             -
                                         {% endif %}
                                     </td>
-                                    <td class="col-notes">
-                                        <input type="text" name="observacoes_admin" value="{{ link.observacoes_admin if link.observacoes_admin else '' }}" placeholder="Observação">
+                                    <td data-label="Observações" class="col-notes">
+                                        <input type="text" class="field-compact" name="observacoes_admin" value="{{ link.observacoes_admin if link.observacoes_admin else '' }}" placeholder="Observação interna (opcional)">
                                     </td>
-                                    <td>
-                                        <button type="submit">Salvar</button>
+                                    <td data-label="Ação">
+                                        <div class="actions actions-row no-margin">
+                                            <button type="submit" data-default-text="Salvar">Salvar</button>
+                                            <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="compra_confirmada" data-confirm-message="Confirmar compra deste link?">Confirmar compra</button>
+                                            <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="compra_nao_confirmada" data-confirm-message="Marcar como compra não confirmada?">Não confirmada</button>
+                                            <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="cashback_pago" data-confirm-message="Marcar cashback como pago?">Marcar cashback pago</button>
+                                        </div>
                                     </td>
                                 </form>
                             </tr>
@@ -173,6 +196,7 @@
             </table>
         </div>
     </div>
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
     <script>
     async function carregarStatusBot() {
         const box = document.getElementById("botStatusBox");
@@ -209,6 +233,10 @@
 
     carregarStatusBot();
     setInterval(carregarStatusBot, 5000);
+
+    if (window.initAdminLinksPage) {
+        window.initAdminLinksPage();
+    }
 </script>
 </body>
 </html>

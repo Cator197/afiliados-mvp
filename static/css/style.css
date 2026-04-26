@@ -240,6 +240,19 @@ button:disabled,
     align-items: end;
 }
 
+.filters-card {
+    border: 1px solid #d8e3f2;
+    background: #f7faff;
+}
+
+.filters-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
 .pagination-bar {
     display: flex;
     justify-content: space-between;
@@ -361,6 +374,31 @@ th {
     background: #fffdf2;
 }
 
+.row-needs-action {
+    background: #fff9e7;
+}
+
+.row-needs-action td:first-child {
+    border-left: 4px solid #f59e0b;
+}
+
+.row-ready-payment {
+    background: #eef7ff;
+}
+
+.row-ready-payment td:first-child {
+    border-left: 4px solid #2563eb;
+}
+
+.row-completed {
+    background: #f3fcf5;
+    opacity: 0.92;
+}
+
+.row-completed td:first-child {
+    border-left: 4px solid #16a34a;
+}
+
 .small {
     font-size: 13px;
     color: var(--color-text-muted);
@@ -410,6 +448,37 @@ th {
 
 .col-notes {
     min-width: 200px;
+}
+
+.status-badge {
+    margin-bottom: 8px;
+}
+
+.status-help-alert {
+    color: #9a6700;
+    font-weight: 600;
+}
+
+.field-compact {
+    padding: 8px 10px !important;
+    font-size: 13px !important;
+}
+
+.field-money {
+    border-color: #cfe3ff;
+}
+
+.field-percent {
+    border-color: #dbe9d0;
+}
+
+.actions-row {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.actions-row button {
+    width: 100%;
 }
 
 @media (max-width: 768px) {

@@ -22,23 +22,23 @@
             </div>
         </div>
 
-        <div id="botStatusBox" class="message-box">
+        <div id="botStatusBox" class="message-box alert alert-loading" role="status" aria-live="polite">
             Verificando status do robô...
         </div>
 
         {% if erro %}
-            <div class="message-box message-error">
+            <div class="message-box alert alert-error" role="alert" aria-live="assertive">
                 {{ erro }}
             </div>
         {% endif %}
 
         {% if sucesso %}
-            <div class="message-box message-success">
+            <div class="message-box alert alert-success" role="status" aria-live="polite">
                 {{ sucesso }}
             </div>
         {% endif %}
 
-        <form method="GET" action="{{ url_for('admin_links') }}" class="card filters-card">
+        <form method="GET" action="{{ url_for('admin_links') }}" class="card filters-card" data-admin-filter="true">
             <div class="filters-header">
                 <strong>Filtros</strong>
                 <span class="small">Use os filtros para acelerar a conferência manual.</span>
@@ -71,7 +71,7 @@
 
                 <div class="actions no-margin">
                     <input type="hidden" name="limit" value="{{ limit }}">
-                    <button type="submit">Filtrar</button>
+                    <button type="submit">Aplicar filtros</button>
                     <a class="btn btn-secondary" href="{{ url_for('admin_links', limit=limit) }}">Limpar filtros</a>
                 </div>
             </div>
@@ -189,7 +189,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="12">Nenhum link encontrado.</td>
+                            <td colspan="12"><div class="empty-state"><strong>Nenhum link encontrado para os filtros atuais.</strong><p>Próximo passo: ajuste os filtros ou clique em <em>Limpar filtros</em>.</p></div></td>
                         </tr>
                     {% endif %}
                 </tbody>
@@ -207,7 +207,7 @@
 
             if (!data.ok) {
                 box.textContent = "Não foi possível verificar o status do robô.";
-                box.className = "message-box message-error";
+                box.className = "message-box alert alert-error";
                 return;
             }
 
@@ -217,17 +217,17 @@
             box.innerHTML = `<strong>Status do robô:</strong> ${status}<br><span class="small">${message}</span>`;
 
             if (status === "online") {
-                box.className = "message-box message-success";
+                box.className = "message-box alert alert-success";
             } else if (status === "aguardando_login_manual") {
-                box.className = "message-box message-warning";
+                box.className = "message-box alert alert-warning";
             } else if (status === "erro_recuperacao") {
-                box.className = "message-box message-error";
+                box.className = "message-box alert alert-error";
             } else {
-                box.className = "message-box";
+                box.className = "message-box alert alert-info";
             }
         } catch (e) {
             box.textContent = "Erro ao consultar o status do robô.";
-            box.className = "message-box message-error";
+            box.className = "message-box alert alert-error";
         }
     }
 

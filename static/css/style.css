@@ -25,6 +25,10 @@
     --color-warning-border: #f2d48a;
     --color-warning-text: #8a6500;
 
+    --color-info-bg: #e9f3ff;
+    --color-info-border: #bad6fb;
+    --color-info-text: #0f3f91;
+
     --space-1: 4px;
     --space-2: 8px;
     --space-3: 12px;
@@ -140,7 +144,7 @@ button,
     font-weight: 600;
     cursor: pointer;
     text-decoration: none;
-    transition: background-color 0.15s ease, transform 0.08s ease;
+    transition: background-color 0.15s ease, transform 0.08s ease, box-shadow 0.15s ease;
 }
 
 button:hover,
@@ -207,6 +211,79 @@ button:disabled,
     color: var(--color-warning-text);
 }
 
+
+button:focus-visible,
+.btn:focus-visible {
+    outline: 2px solid #0f3f91;
+    outline-offset: 2px;
+}
+
+.alert {
+    display: block;
+    border-left: 4px solid transparent;
+}
+
+.alert::before {
+    display: inline-block;
+    margin-right: var(--space-2);
+    font-weight: 700;
+}
+
+.alert-success {
+    background: var(--color-success-bg);
+    border-color: var(--color-success-border);
+    border-left-color: #238a44;
+    color: var(--color-success-text);
+}
+
+.alert-success::before {
+    content: "Sucesso:";
+}
+
+.alert-error {
+    background: var(--color-error-bg);
+    border-color: var(--color-error-border);
+    border-left-color: #b42318;
+    color: var(--color-error-text);
+}
+
+.alert-error::before {
+    content: "Erro:";
+}
+
+.alert-warning {
+    background: var(--color-warning-bg);
+    border-color: var(--color-warning-border);
+    border-left-color: #b7791f;
+    color: var(--color-warning-text);
+}
+
+.alert-warning::before {
+    content: "Atenção:";
+}
+
+.alert-info {
+    background: var(--color-info-bg);
+    border-color: var(--color-info-border);
+    border-left-color: #1d4ed8;
+    color: var(--color-info-text);
+}
+
+.alert-info::before {
+    content: "Informação:";
+}
+
+.alert-loading {
+    background: #eef3ff;
+    border-color: #c7d6fb;
+    border-left-color: #4f46e5;
+    color: #1e3a8a;
+}
+
+.alert-loading::before {
+    content: "Carregando:";
+}
+
 .is-hidden {
     display: none;
 }
@@ -264,6 +341,7 @@ button:disabled,
 .table-wrapper {
     overflow-x: auto;
     margin-top: var(--space-5);
+    -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -500,6 +578,20 @@ th {
 
     .actions > * {
         flex: 1 1 auto;
+    }
+
+    button,
+    .btn {
+        width: 100%;
+    }
+
+    .topbar {
+        align-items: stretch;
+    }
+
+    .pagination-bar {
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     table {

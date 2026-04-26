@@ -127,6 +127,9 @@ CHROME_USE_WEBDRIVER_MANAGER_FALLBACK = _env_bool("CHROME_USE_WEBDRIVER_MANAGER_
 CHROME_PROFILE_DIR = Path(
     _env_str("CHROME_PROFILE_DIR", str(SECURE_STORAGE_DIR / "chrome_profile"))
 ).expanduser()
+METADATA_CHROME_PROFILE_DIR = Path(
+    _env_str("METADATA_CHROME_PROFILE_DIR", str(DATA_DIR / "chrome_profile_metadata"))
+).expanduser()
 
 
 def validate_security_config():

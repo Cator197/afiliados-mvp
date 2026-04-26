@@ -516,6 +516,47 @@ th {
     font-weight: 700;
 }
 
+.history-list {
+    margin-top: var(--space-5);
+    display: grid;
+    gap: var(--space-3);
+}
+
+.history-card {
+    position: relative;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--radius-md);
+    background: #fbfdff;
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+    padding-right: 108px;
+}
+
+.history-card p {
+    margin: 0 0 var(--space-2);
+}
+
+.history-card p:last-child {
+    margin-bottom: 0;
+}
+
+.history-card-desc {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.history-card-image {
+    position: absolute;
+    top: var(--space-4);
+    right: var(--space-4);
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid #d8e3f2;
+    background: #f1f5f9;
+}
+
 .col-status {
     min-width: 180px;
 }
@@ -631,6 +672,16 @@ th {
 
     .table-link--truncate {
         max-width: 100%;
+    }
+
+    .history-card {
+        padding-right: var(--space-4);
+        padding-top: 96px;
+    }
+
+    .history-card-image {
+        left: var(--space-4);
+        right: auto;
     }
 }
 

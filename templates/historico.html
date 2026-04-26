@@ -12,9 +12,6 @@
         <p class="subtitle">
             Aqui você acompanha os links já gerados e o andamento do cashback.
         </p>
-        <p class="small">
-            O cashback depende da confirmação da compra e da comissão recebida pela plataforma.
-        </p>
 
         <div class="actions">
             <a class="btn" href="{{ url_for('pagina_usuario', codigo_usuario=usuario.codigo_usuario) }}">Gerar novo link</a>
@@ -40,26 +37,7 @@
             </div>
         </section>
 
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Data</th>
-                        <th>URL original</th>
-                        <th>Link afiliado</th>
-                        <th>Plataforma</th>
-                        <th>Status</th>
-                        <th>Comissão</th>
-                        <th>Cashback</th>
-                    </tr>
-                </thead>
-                <tbody id="historicoBody">
-                    <tr>
-                        <td colspan="7">Carregando histórico...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        <section id="historicoLista" class="history-list" aria-live="polite"></section>
     </div>
 
     <script>
@@ -71,13 +49,14 @@
     </script>
 
     <script>
-        const historicoBody = document.getElementById("historicoBody");
+        const historicoLista = document.getElementById("historicoLista");
         const mensagem = document.getElementById("mensagem");
         const summaryQuantidadePendente = document.getElementById("summaryQuantidadePendente");
         const summaryQuantidadePago = document.getElementById("summaryQuantidadePago");
         const summaryQuantidadePerdido = document.getElementById("summaryQuantidadePerdido");
         const summaryValorPendente = document.getElementById("summaryValorPendente");
         const summaryValorPago = document.getElementById("summaryValorPago");
+        const PLACEHOLDER_IMAGE = "{{ url_for('static', filename='img/product-placeholder.svg') }}";
 
         function mostrarMensagem(texto, tipo = "info") {
             mensagem.className = `message-box alert alert-${tipo}`;
@@ -97,27 +76,12 @@
             erro: "Erro"
         };
 
-        const STATUS_HELP_MAP = {
-            aguardando_verificacao: "Estamos conferindo manualmente se a compra foi confirmada.",
-            compra_confirmada: "A compra foi validada e o cashback será calculado.",
-            cashback_pago: "O cashback já foi marcado como pago."
-        };
-
         function statusLabel(status) {
             return STATUS_MAP[status] || status || "-";
         }
 
         function badgeHtml(status) {
-            const ajuda = STATUS_HELP_MAP[status];
-            const tooltip = ajuda ? ` title="${ajuda}"` : "";
-            const helpHtml = ajuda ? `<span class="status-help">${ajuda}</span>` : "";
-            return `<span class="badge ${status || "desconhecido"}"${tooltip}>${statusLabel(status)}</span>${helpHtml}`;
-        }
-
-        function plataformaBadgeHtml(plataforma, plataformaLabel) {
-            const classe = plataforma || "nao_informado";
-            const label = plataformaLabel || "Não informado";
-            return `<span class="badge platform-badge ${classe}">${label}</span>`;
+            return `<span class="badge ${status || "desconhecido"}">${statusLabel(status)}</span>`;
         }
 
         function formatarMoeda(valor) {
@@ -141,17 +105,6 @@
             return formatarMoeda(valor);
         }
 
-
-        function formatarUrl(url) {
-            if (!url) return "-";
-
-            const limite = 50;
-
-            if (url.length <= limite) return url;
-
-            return url.substring(0, limite) + "...";
-        }
-
         function formatarData(dataTexto) {
             if (!dataTexto) return "-";
             const data = new Date(dataTexto);
@@ -165,6 +118,47 @@
             });
         }
 
+        function escapeHtml(value) {
+            return String(value || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function cardLinkAfiliado(url) {
+            if (!url) {
+                return "-";
+            }
+            const sanitizedUrl = escapeHtml(url);
+            return `<a href="${sanitizedUrl}" target="_blank" class="table-link">${sanitizedUrl}</a>`;
+        }
+
+        function renderHistorico(links) {
+            historicoLista.innerHTML = links.map(link => {
+                const descricao = (link.descricao_item || "").trim() || "Produto em processamento";
+                const fotoUrl = (link.foto_item_url || "").trim() || PLACEHOLDER_IMAGE;
+                const cashbackClass = Number(link.valor_cashback || 0) > 0 ? "cashback-highlight" : "";
+
+                return `
+                    <article class="history-card">
+                        <img
+                            class="history-card-image"
+                            src="${escapeHtml(fotoUrl)}"
+                            alt="Imagem do produto"
+                            loading="lazy"
+                            onerror="this.onerror=null;this.src='${PLACEHOLDER_IMAGE}';"
+                        >
+                        <p class="history-card-desc">${escapeHtml(descricao)}</p>
+                        <p><strong>Status:</strong> ${badgeHtml(link.status)}</p>
+                        <p><strong>Valor do cashback:</strong> <span class="${cashbackClass}">${valorMoedaOuTraco(link.valor_cashback)}</span></p>
+                        <p><strong>Link afiliado:</strong> ${cardLinkAfiliado(link.url_afiliado)}</p>
+                        <p><strong>Data:</strong> ${formatarData(link.criado_em)}</p>
+                    </article>
+                `;
+            }).join("");
+        }
 
         async function carregarHistorico() {
             try {
@@ -182,7 +176,7 @@
 
                 if (!data.ok || !resumoData.ok) {
                     mostrarMensagem(data.erro || resumoData.erro || "Erro ao carregar histórico.", "error");
-                    historicoBody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><strong>Não foi possível carregar os dados.</strong><p>Próximo passo: atualize a página ou tente novamente em instantes.</p></div></td></tr>`;
+                    historicoLista.innerHTML = `<div class="empty-state"><strong>Não foi possível carregar os dados.</strong><p>Próximo passo: atualize a página ou tente novamente em instantes.</p></div>`;
                     return;
                 }
 
@@ -192,45 +186,21 @@
 
                 if (!links.length) {
                     mostrarMensagem("Você ainda não gerou links. Próximo passo: volte para a tela anterior e gere seu primeiro link.", "warning");
-                    historicoBody.innerHTML = `
-                        <tr>
-                            <td colspan="7">
-                                <div class="empty-state">
-                                    <strong>Histórico vazio.</strong>
-                                    <p>Nenhum link foi gerado até agora.</p>
-                                    <p>Próximo passo: clique em <em>Gerar novo link</em> para começar.</p>
-                                </div>
-                            </td>
-                        </tr>
+                    historicoLista.innerHTML = `
+                        <div class="empty-state">
+                            <strong>Histórico vazio.</strong>
+                            <p>Nenhum link foi gerado até agora.</p>
+                            <p>Próximo passo: clique em <em>Gerar novo link</em> para começar.</p>
+                        </div>
                     `;
                     return;
                 }
 
                 mostrarMensagem(`Histórico atualizado com ${links.length} registro(s).`, "success");
-
-                historicoBody.innerHTML = links.map(link => `
-                    <tr>
-                        <td data-label="Data">${formatarData(link.criado_em)}</td>
-                        <td data-label="URL original">
-                            <a href="${link.url_original}" target="_blank" class="table-link table-link--truncate" title="${link.url_original}">
-                                ${formatarUrl(link.url_original)}
-                            </a>
-                        </td>
-                        <td data-label="Link afiliado">
-                            ${link.url_afiliado
-                                ? `<a href="${link.url_afiliado}" target="_blank" class="table-link table-link--truncate" title="${link.url_afiliado}">${formatarUrl(link.url_afiliado)}</a>`
-                                : "-"}
-                        </td>
-                        <td data-label="Plataforma">${plataformaBadgeHtml(link.plataforma, link.plataforma_label)}</td>
-                        <td data-label="Status">${badgeHtml(link.status)}</td>
-                        <td data-label="Comissão">${valorMoedaOuTraco(link.valor_comissao)}</td>
-                        <td data-label="Cashback" class="${Number(link.valor_cashback || 0) > 0 ? "cashback-highlight" : ""}">${valorMoedaOuTraco(link.valor_cashback)}</td>
-                    </tr>
-                `).join("");
-
+                renderHistorico(links);
             } catch (e) {
                 mostrarMensagem("Erro de comunicação com o servidor.", "error");
-                historicoBody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><strong>Erro ao carregar histórico.</strong><p>Próximo passo: atualize a página e tente novamente.</p></div></td></tr>`;
+                historicoLista.innerHTML = `<div class="empty-state"><strong>Erro ao carregar histórico.</strong><p>Próximo passo: atualize a página e tente novamente.</p></div>`;
             }
         }
 

@@ -104,7 +104,7 @@
                         <th>Link afiliado</th>
                         <th>Plataforma</th>
                         <th>Status</th>
-                        <th>Comissão recebida (R$)</th>
+                        <th>Comissão calculada (R$)</th>
                         <th>% Cashback</th>
                         <th>Cashback calculado (R$)</th>
                         <th>Observações</th>
@@ -160,8 +160,19 @@
                                             <option value="cashback_pago" {% if link.status == 'cashback_pago' %}selected{% endif %}>cashback_pago</option>
                                         </select>
                                     </td>
-                                    <td data-label="Comissão recebida (R$)" class="col-value">
-                                        <input type="text" class="field-compact field-money" name="valor_comissao" value="{{ link.valor_comissao if link.valor_comissao is not none else '' }}" placeholder="Ex: 120,50">
+                                    <td data-label="Comissão calculada (R$)" class="col-value">
+                                        {% if link.valor_comissao is not none %}
+                                            <span class="cashback-highlight">R$ {{ "%.2f"|format(link.valor_comissao) }}</span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                        <div class="small">
+                                            {% if link.valor_produto is not none and link.percentual_comissao is not none %}
+                                                Base: R$ {{ "%.2f"|format(link.valor_produto) }} × {{ "%.2f"|format(link.percentual_comissao) }}%
+                                            {% else %}
+                                                Aguardando metadados do produto
+                                            {% endif %}
+                                        </div>
                                     </td>
                                     <td data-label="% Cashback" class="col-value">
                                         <input type="text" class="field-compact field-percent" name="percentual_cashback" value="{{ link.percentual_cashback if link.percentual_cashback is not none else '' }}" placeholder="Ex: 50">

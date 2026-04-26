@@ -7,11 +7,19 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container">
+    <div class="container container-sm">
         <h1>Olá, {{ usuario.nome }}</h1>
         <p class="subtitle">
-            Cole abaixo o link do produto (Mercado Livre ou Shopee) para gerar seu link com cashback.
+            Envie o link original do produto e nós geramos seu link com cashback.
+            Depois, é só comprar usando o link gerado e acompanhar o andamento no histórico.
         </p>
+
+        <ol class="stepper" aria-label="Como funciona">
+            <li class="stepper-item is-active"><span>1</span>Envie o link</li>
+            <li class="stepper-item"><span>2</span>Gere seu link com cashback</li>
+            <li class="stepper-item"><span>3</span>Compre usando o link</li>
+            <li class="stepper-item"><span>4</span>Acompanhe o cashback</li>
+        </ol>
 
         <div class="input-group">
             <label for="urlProduto">Link do produto</label>
@@ -28,7 +36,7 @@
             <a class="btn btn-secondary" href="/logout">Sair</a>
         </div>
 
-        <div id="statusBox" class="status-box is-hidden"></div>
+        <div id="statusBox" class="status-box is-hidden" role="status" aria-live="polite"></div>
         <div id="resultBox" class="result-box is-hidden"></div>
     </div>
 

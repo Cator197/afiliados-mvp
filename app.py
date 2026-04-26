@@ -1488,24 +1488,14 @@ def listar_links_usuario(codigo_usuario):
             {
                 "id": link["id"],
                 "job_id": link["job_id"],
-                "url_original": link["url_original"],
                 "url_afiliado": link["url_afiliado"],
                 "plataforma": link["plataforma"],
                 "plataforma_label": get_platform_label(link["plataforma"]),
                 "status": link["status"],
-                "percentual_cashback": link["percentual_cashback"],
                 "descricao_item": link["descricao_item"],
                 "foto_item_url": link["foto_item_url"],
-                "valor_produto": link["valor_produto"],
-                "percentual_comissao": link["percentual_comissao"],
-                "valor_comissao": link["valor_comissao"],
                 "valor_cashback": link["valor_cashback"],
-                "metadados_status": link["metadados_status"],
-                "metadados_erro": link["metadados_erro"],
-                "metadados_atualizado_em": link["metadados_atualizado_em"],
-                "observacoes_admin": link["observacoes_admin"],
                 "criado_em": link["criado_em"],
-                "atualizado_em": link["atualizado_em"]
             }
             for link in links
         ]

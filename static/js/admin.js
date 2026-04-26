@@ -120,7 +120,7 @@
                     errorText.textContent = '';
                 }
 
-                mostrarAvisoGlobal('Atualização enviada para a fila', 'success');
+                mostrarAvisoGlobal(data.mensagem || 'Atualização enviada para a fila.', 'success');
             } catch (error) {
                 mostrarAvisoGlobal(error.message || 'Erro ao atualizar metadados.', 'error');
             } finally {

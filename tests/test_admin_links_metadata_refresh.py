@@ -150,8 +150,39 @@ class AdminLinksMetadataRefreshTests(unittest.TestCase):
         atualizado = self._get_link()
         self.assertEqual(atualizado["metadados_status"], "pendente")
         self.assertIsNone(atualizado["metadados_erro"])
-        self.assertIsNone(atualizado["metadados_atualizado_em"])
+        self.assertRegex(atualizado["metadados_atualizado_em"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
         self.assertEqual(atualizado["descricao_item"], "Produto antigo")
+
+    def test_reenfileirar_permite_reprocessar_item_concluido(self):
+        self._login_admin()
+        csrf_token = self._get_admin_csrf_token()
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE links_gerados
+            SET metadados_status = 'concluido',
+                metadados_erro = NULL
+            WHERE id = ?
+            """,
+            (self.link_id,),
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.post(
+            f"/admin/links/{self.link_id}/atualizar-infos",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["metadados_status"], "pendente")
+
+        atualizado = self._get_link()
+        self.assertEqual(atualizado["metadados_status"], "pendente")
 
 
 if __name__ == "__main__":

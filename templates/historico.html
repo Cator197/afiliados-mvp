@@ -12,6 +12,9 @@
         <p class="subtitle">
             Aqui você acompanha os links já gerados e o andamento do cashback.
         </p>
+        <p class="small">
+            O cashback depende da confirmação da compra e da comissão recebida pela plataforma.
+        </p>
 
         <div class="actions">
             <a class="btn" href="{{ url_for('pagina_usuario', codigo_usuario=usuario.codigo_usuario) }}">Gerar novo link</a>
@@ -46,13 +49,13 @@
                         <th>Link afiliado</th>
                         <th>Plataforma</th>
                         <th>Status</th>
-
+                        <th>Comissão</th>
                         <th>Cashback</th>
                     </tr>
                 </thead>
                 <tbody id="historicoBody">
                     <tr>
-                        <td colspan="6">Carregando histórico...</td>
+                        <td colspan="7">Carregando histórico...</td>
                     </tr>
                 </tbody>
             </table>
@@ -81,8 +84,32 @@
             mensagem.textContent = texto;
         }
 
+        const STATUS_MAP = {
+            na_fila: "Na fila",
+            processando: "Processando",
+            gerado: "Link gerado",
+            aguardando_verificacao: "Em análise",
+            compra_confirmada: "Compra confirmada",
+            compra_nao_confirmada: "Compra não confirmada",
+            cashback_pago: "Cashback pago",
+            erro: "Erro"
+        };
+
+        const STATUS_HELP_MAP = {
+            aguardando_verificacao: "Estamos conferindo manualmente se a compra foi confirmada.",
+            compra_confirmada: "A compra foi validada e o cashback será calculado.",
+            cashback_pago: "O cashback já foi marcado como pago."
+        };
+
+        function statusLabel(status) {
+            return STATUS_MAP[status] || status || "-";
+        }
+
         function badgeHtml(status) {
-            return `<span class="badge ${status}">${status}</span>`;
+            const ajuda = STATUS_HELP_MAP[status];
+            const tooltip = ajuda ? ` title="${ajuda}"` : "";
+            const helpHtml = ajuda ? `<span class="status-help">${ajuda}</span>` : "";
+            return `<span class="badge ${status || "desconhecido"}"${tooltip}>${statusLabel(status)}</span>${helpHtml}`;
         }
 
         function plataformaBadgeHtml(plataforma, plataformaLabel) {
@@ -105,11 +132,11 @@
             summaryValorPago.textContent = formatarMoeda(data.valor_pago);
         }
 
-        function valorOuTraco(valor) {
+        function valorMoedaOuTraco(valor) {
             if (valor === null || valor === undefined || valor === "") {
                 return "-";
             }
-            return Number(valor).toFixed(2);
+            return formatarMoeda(valor);
         }
 
 
@@ -121,6 +148,19 @@
             if (url.length <= limite) return url;
 
             return url.substring(0, limite) + "...";
+        }
+
+        function formatarData(dataTexto) {
+            if (!dataTexto) return "-";
+            const data = new Date(dataTexto);
+            if (Number.isNaN(data.getTime())) return dataTexto;
+            return data.toLocaleString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit"
+            });
         }
 
 
@@ -140,7 +180,7 @@
 
                 if (!data.ok || !resumoData.ok) {
                     mostrarErro(data.erro || resumoData.erro || "Erro ao carregar histórico.");
-                    historicoBody.innerHTML = `<tr><td colspan="6">Não foi possível carregar os dados.</td></tr>`;
+                    historicoBody.innerHTML = `<tr><td colspan="7">Não foi possível carregar os dados.</td></tr>`;
                     return;
                 }
 
@@ -149,33 +189,42 @@
                 const links = data.links || [];
 
                 if (!links.length) {
-                    historicoBody.innerHTML = `<tr><td colspan="6">Nenhum link gerado ainda.</td></tr>`;
+                    historicoBody.innerHTML = `
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state">
+                                    <strong>Você ainda não gerou links.</strong>
+                                    <p>Quando você gerar seu primeiro link afiliado, ele aparecerá aqui com o status e o cashback.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
                     return;
                 }
 
                 historicoBody.innerHTML = links.map(link => `
                     <tr>
-                        <td>${link.criado_em || "-"}</td>
-                        <td>
-                            <a href="${link.url_original}" target="_blank" class="table-link">
+                        <td data-label="Data">${formatarData(link.criado_em)}</td>
+                        <td data-label="URL original">
+                            <a href="${link.url_original}" target="_blank" class="table-link table-link--truncate" title="${link.url_original}">
                                 ${formatarUrl(link.url_original)}
                             </a>
                         </td>
-                        <td>
+                        <td data-label="Link afiliado">
                             ${link.url_afiliado
-                                ? `<a href="${link.url_afiliado}" target="_blank" class="table-link">${link.url_afiliado}</a>`
+                                ? `<a href="${link.url_afiliado}" target="_blank" class="table-link table-link--truncate" title="${link.url_afiliado}">${formatarUrl(link.url_afiliado)}</a>`
                                 : "-"}
                         </td>
-                        <td>${plataformaBadgeHtml(link.plataforma, link.plataforma_label)}</td>
-                        <td>${badgeHtml(link.status)}</td>
-
-                        <td>R$ ${valorOuTraco(link.valor_cashback)}</td>
+                        <td data-label="Plataforma">${plataformaBadgeHtml(link.plataforma, link.plataforma_label)}</td>
+                        <td data-label="Status">${badgeHtml(link.status)}</td>
+                        <td data-label="Comissão">${valorMoedaOuTraco(link.valor_comissao)}</td>
+                        <td data-label="Cashback" class="${Number(link.valor_cashback || 0) > 0 ? "cashback-highlight" : ""}">${valorMoedaOuTraco(link.valor_cashback)}</td>
                     </tr>
                 `).join("");
 
             } catch (e) {
                 mostrarErro("Erro de comunicação com o servidor.");
-                historicoBody.innerHTML = `<tr><td colspan="6">Erro ao carregar histórico.</td></tr>`;
+                historicoBody.innerHTML = `<tr><td colspan="7">Erro ao carregar histórico.</td></tr>`;
             }
         }
 

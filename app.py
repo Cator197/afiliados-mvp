@@ -55,6 +55,7 @@ from repositories.links_repo import (
     get_links_by_usuario_id,
     get_all_links,
     get_link_by_id,
+    claim_next_metadata_job,
     recalcular_valores,
     update_link_admin_fields,
     update_product_metadata,
@@ -1413,6 +1414,102 @@ def worker_job_error(job_id):
     app.logger.info("[JOB %s] Error recebido do worker remoto: %s", job_id, mensagem_erro)
 
     return jsonify({"ok": True, "job_id": job_id, "status": JOB_STATUS_ERRO})
+
+
+@app.route("/api/worker/metadata/claim", methods=["POST"])
+def worker_claim_metadata_job():
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+
+    metadata_job = claim_next_metadata_job(atualizado_em=now_str())
+    if not metadata_job:
+        return jsonify({"ok": True, "metadata_job": None})
+
+    app.logger.info(
+        "[METADATA %s] Job de metadados claimado para processamento.",
+        metadata_job["id"],
+    )
+    return jsonify({
+        "ok": True,
+        "metadata_job": {
+            "id": metadata_job["id"],
+            "job_id": metadata_job["job_id"],
+            "usuario_id": metadata_job["usuario_id"],
+            "url_original": metadata_job["url_original"],
+            "percentual_cashback": metadata_job["percentual_cashback"],
+        }
+    })
+
+
+@app.route("/api/worker/metadata/<int:link_id>/success", methods=["POST"])
+def worker_metadata_success(link_id):
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json(silent=True) or {}
+    descricao_item = data.get("descricao_item")
+    foto_item_url = data.get("foto_item_url")
+    valor_produto = data.get("valor_produto")
+    percentual_comissao = data.get("percentual_comissao")
+    percentual_cashback = data.get("percentual_cashback")
+
+    link = get_link_by_id(link_id)
+    if not link:
+        return jsonify({"ok": False, "erro": "Link não encontrado."}), 404
+    if link["metadados_status"] not in {"pendente", "processando"}:
+        return jsonify({"ok": False, "erro": "Link fora de contexto para metadados success."}), 409
+
+    atualizado_em = now_str()
+    update_product_metadata(
+        link_id=link_id,
+        descricao_item=descricao_item,
+        foto_item_url=foto_item_url,
+        valor_produto=valor_produto,
+        percentual_comissao=percentual_comissao,
+        metadados_status="concluido",
+        metadados_erro="",
+        metadados_atualizado_em=atualizado_em,
+        atualizado_em=atualizado_em,
+    )
+    recalcular_valores(
+        link_id=link_id,
+        percentual_cashback=percentual_cashback,
+        atualizado_em=atualizado_em,
+    )
+    app.logger.info("[METADATA %s] Metadados concluídos com sucesso.", link_id)
+    return jsonify({"ok": True, "link_id": link_id, "metadados_status": "concluido"})
+
+
+@app.route("/api/worker/metadata/<int:link_id>/error", methods=["POST"])
+def worker_metadata_error(link_id):
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json(silent=True) or {}
+    mensagem_erro = data.get("mensagem_erro", "").strip()
+    if not mensagem_erro:
+        return jsonify({"ok": False, "erro": "mensagem_erro não informada."}), 400
+
+    link = get_link_by_id(link_id)
+    if not link:
+        return jsonify({"ok": False, "erro": "Link não encontrado."}), 404
+
+    if link["metadados_status"] not in {"pendente", "processando"}:
+        return jsonify({"ok": False, "erro": "Link fora de contexto para metadados error."}), 409
+
+    atualizado_em = now_str()
+    update_product_metadata(
+        link_id=link_id,
+        metadados_status="erro",
+        metadados_erro=mensagem_erro,
+        metadados_atualizado_em=atualizado_em,
+        atualizado_em=atualizado_em,
+    )
+    app.logger.warning("[METADATA %s] Erro no processamento: %s", link_id, mensagem_erro)
+    return jsonify({"ok": True, "link_id": link_id, "metadados_status": "erro"})
 
 
 @app.route("/api/jobs/<job_id>", methods=["GET"])

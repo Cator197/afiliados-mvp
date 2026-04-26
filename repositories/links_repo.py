@@ -15,7 +15,7 @@ def create_link_gerado(usuario_id, job_id, url_original, plataforma, url_afiliad
             percentual_cashback, descricao_item, foto_item_url, valor_produto, percentual_comissao,
             metadados_status, metadados_erro, metadados_atualizado_em, criado_em, atualizado_em
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         usuario_id,
         job_id,
@@ -175,6 +175,54 @@ def update_product_metadata(link_id, descricao_item=None, foto_item_url=None,
 
     conn.commit()
     conn.close()
+
+
+def claim_next_metadata_job(atualizado_em):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("BEGIN IMMEDIATE")
+        cursor.execute(
+            """
+            SELECT id, job_id, usuario_id, url_original, percentual_cashback
+            FROM links_gerados
+            WHERE metadados_status = 'pendente'
+            ORDER BY id ASC
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            conn.commit()
+            return None
+
+        cursor.execute(
+            """
+            UPDATE links_gerados
+            SET metadados_status = 'processando',
+                metadados_erro = NULL,
+                metadados_atualizado_em = ?,
+                atualizado_em = ?
+            WHERE id = ?
+            """,
+            (atualizado_em, atualizado_em, row["id"]),
+        )
+
+        cursor.execute(
+            """
+            SELECT id, job_id, usuario_id, url_original, percentual_cashback
+            FROM links_gerados
+            WHERE id = ?
+            """,
+            (row["id"],),
+        )
+        claimed = cursor.fetchone()
+        conn.commit()
+        return claimed
+    finally:
+        conn.close()
 
 
 def recalcular_valores(link_id, percentual_cashback=None, atualizado_em=None):

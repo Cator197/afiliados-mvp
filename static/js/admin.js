@@ -76,6 +76,60 @@
         });
     }
 
+    function handleMetadataRefreshButton(form) {
+        const actionsContainer = form.querySelector('[data-link-actions="true"]');
+        const refreshButton = form.querySelector('.btn-refresh-metadata');
+        const statusLabel = form.querySelector('.metadata-status-label');
+        const errorText = form.querySelector('.metadata-error-text');
+
+        if (!actionsContainer || !refreshButton) {
+            return;
+        }
+
+        const endpoint = actionsContainer.dataset.metadataEndpoint;
+        const csrfToken = actionsContainer.dataset.csrfToken;
+
+        refreshButton.addEventListener('click', async function () {
+            if (!endpoint || !csrfToken) {
+                mostrarAvisoGlobal('Não foi possível enviar o link para a fila de metadados.', 'error');
+                return;
+            }
+
+            refreshButton.disabled = true;
+            const previousText = refreshButton.textContent;
+            refreshButton.textContent = 'Enviando...';
+
+            try {
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                });
+                const data = await resp.json();
+
+                if (!resp.ok || !data.ok) {
+                    throw new Error(data.erro || 'Falha ao enfileirar atualização.');
+                }
+
+                if (statusLabel) {
+                    statusLabel.textContent = 'pendente';
+                }
+                if (errorText) {
+                    errorText.textContent = '';
+                }
+
+                mostrarAvisoGlobal('Atualização enviada para a fila', 'success');
+            } catch (error) {
+                mostrarAvisoGlobal(error.message || 'Erro ao atualizar metadados.', 'error');
+            } finally {
+                refreshButton.disabled = false;
+                refreshButton.textContent = previousText;
+            }
+        });
+    }
+
     function handleFilterLoading() {
         const filterForm = document.querySelector('form[data-admin-filter="true"]');
         if (!filterForm) {
@@ -92,6 +146,7 @@
         forms.forEach((form) => {
             handleQuickStatusButtons(form);
             handleSubmitFeedback(form);
+            handleMetadataRefreshButton(form);
         });
 
         handleFilterLoading();

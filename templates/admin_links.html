@@ -165,6 +165,15 @@
                                         </select>
                                     </td>
                                     <td data-label="Descrição do item" class="col-notes">
+                                        <div class="small">
+                                            Metadados:
+                                            <strong class="metadata-status-label">{{ link.metadados_status or 'pendente' }}</strong>
+                                            {% if link.metadados_erro %}
+                                                <br><span class="status-help status-help-alert metadata-error-text">{{ link.metadados_erro }}</span>
+                                            {% else %}
+                                                <span class="metadata-error-text"></span>
+                                            {% endif %}
+                                        </div>
                                         <input type="text" class="field-compact" name="descricao_item" value="{{ link.descricao_item if link.descricao_item else '' }}" placeholder="Descrição do item">
                                     </td>
                                     <td data-label="Foto do item">
@@ -204,9 +213,16 @@
                                         <input type="text" class="field-compact" name="observacoes_admin" value="{{ link.observacoes_admin if link.observacoes_admin else '' }}" placeholder="Observação interna (opcional)">
                                     </td>
                                     <td data-label="Ação">
-                                        <div class="actions actions-row no-margin">
+                                        <div
+                                            class="actions actions-row no-margin"
+                                            data-link-actions="true"
+                                            data-link-id="{{ link.id }}"
+                                            data-metadata-endpoint="{{ url_for('admin_atualizar_infos_link', link_id=link.id) }}"
+                                            data-csrf-token="{{ csrf_token }}"
+                                        >
                                             <button type="submit" name="acao" value="salvar" data-default-text="Salvar">Salvar</button>
                                             <button type="submit" class="btn btn-secondary" name="acao" value="recalcular">Recalcular valores</button>
+                                            <button type="button" class="btn btn-secondary btn-refresh-metadata">Atualizar infos</button>
                                             <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="compra_confirmada" data-confirm-message="Confirmar compra deste link?">Confirmar compra</button>
                                             <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="compra_nao_confirmada" data-confirm-message="Marcar como compra não confirmada?">Não confirmada</button>
                                             <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="cashback_pago" data-confirm-message="Marcar cashback como pago?">Marcar cashback pago</button>

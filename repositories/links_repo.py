@@ -225,6 +225,26 @@ def claim_next_metadata_job(atualizado_em):
         conn.close()
 
 
+def enqueue_metadata_refresh(link_id, atualizado_em):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE links_gerados
+        SET metadados_status = 'pendente',
+            metadados_erro = NULL,
+            metadados_atualizado_em = NULL,
+            atualizado_em = ?
+        WHERE id = ?
+        """,
+        (atualizado_em, link_id),
+    )
+
+    conn.commit()
+    conn.close()
+
+
 def recalcular_valores(link_id, percentual_cashback=None, atualizado_em=None):
     conn = get_connection()
     cursor = conn.cursor()

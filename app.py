@@ -56,6 +56,7 @@ from repositories.links_repo import (
     get_all_links,
     get_link_by_id,
     claim_next_metadata_job,
+    enqueue_metadata_refresh,
     recalcular_valores,
     update_link_admin_fields,
     update_product_metadata,
@@ -636,6 +637,30 @@ def admin_atualizar_link(link_id):
 
     mensagem_sucesso = "Valores recalculados com sucesso." if acao == "recalcular" else "Link atualizado com sucesso."
     return redirect(url_for("admin_links", sucesso=mensagem_sucesso))
+
+
+@app.route("/admin/links/<int:link_id>/atualizar-infos", methods=["POST"])
+@login_required_admin
+@csrf_protected
+def admin_atualizar_infos_link(link_id):
+    if not admin_logado():
+        return jsonify({"ok": False, "erro": "Admin não autenticado."}), 401
+
+    link = get_link_by_id(link_id)
+    if not link:
+        return jsonify({"ok": False, "erro": "Link não encontrado."}), 404
+
+    enqueue_metadata_refresh(
+        link_id=link_id,
+        atualizado_em=now_str(),
+    )
+    app.logger.info("[ADMIN] Reprocessamento de metadados enfileirado para link_id=%s", link_id)
+    return jsonify({
+        "ok": True,
+        "link_id": link_id,
+        "metadados_status": "pendente",
+        "mensagem": "Atualização enviada para a fila.",
+    })
 
 
 @app.route("/admin/solicitacoes", methods=["GET"])

@@ -7,20 +7,21 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container">
+    <div class="container container-sm">
         <h1>Acesse suas promoções com cashback</h1>
         <p class="subtitle">
-            Entre com seu código de usuário e senha.
+            Para entrar, use o <strong>ID de usuário</strong> que você recebeu e sua senha.
+            Se ainda não tem acesso, solicite o cadastro abaixo.
         </p>
 
         <div class="input-group">
-            <label for="codigo_usuario">Código do usuário</label>
-            <input type="text" id="codigo_usuario" placeholder="Ex: CAIO001">
+            <label for="codigo_usuario">ID do usuário recebido</label>
+            <input type="text" id="codigo_usuario" placeholder="Ex: CAIO001" autocomplete="username">
         </div>
 
         <div class="input-group">
             <label for="senha">Senha</label>
-            <input type="password" id="senha" placeholder="Digite sua senha">
+            <input type="password" id="senha" placeholder="Digite sua senha" autocomplete="current-password">
         </div>
 
         <div class="actions">
@@ -29,7 +30,7 @@
             <a href="{{ url_for('pagina_esqueci_senha') }}" class="btn btn-secondary">Esqueci minha senha</a>
         </div>
 
-        <div id="mensagem" class="message-box is-hidden"></div>
+        <div id="mensagem" class="message-box is-hidden" role="status" aria-live="polite"></div>
     </div>
 
     <script>
@@ -43,10 +44,26 @@
             mensagem.textContent = texto;
         }
 
+        function mensagemLoginAmigavel(erro) {
+            const texto = (erro || "").toLowerCase();
+
+            if (texto.includes("não encontrado") || texto.includes("nao encontrado") || texto.includes("não existe") || texto.includes("nao existe")) {
+                return "Não encontramos esse ID de usuário. Confira o ID recebido e tente novamente. Se precisar, solicite cadastro.";
+            }
+            if (texto.includes("senha") && (texto.includes("inválida") || texto.includes("invalida") || texto.includes("incorreta"))) {
+                return "Senha inválida. Revise a senha e tente novamente.";
+            }
+            if (texto.includes("bloqueado") || texto.includes("inativo")) {
+                return "Seu acesso está indisponível no momento. Entre em contato com o suporte para liberar o login.";
+            }
+
+            return erro || "Não foi possível realizar o login agora. Revise seus dados e tente novamente.";
+        }
+
         function obterCodigoUsuario() {
             const codigo_usuario = inputCodigo.value.trim().toUpperCase();
             if (!codigo_usuario) {
-                mostrarMensagem("Digite seu código de usuário para continuar.", true);
+                mostrarMensagem("Informe o ID de usuário recebido para continuar.", true);
                 return null;
             }
             return codigo_usuario;
@@ -65,7 +82,7 @@
             }
 
             btnEntrar.disabled = true;
-            mostrarMensagem("Validando acesso...");
+            mostrarMensagem("Validando seu acesso... Aguarde.");
 
             try {
                 const resp = await fetch("/api/login", {
@@ -79,12 +96,13 @@
                 const data = await resp.json();
 
                 if (data.ok) {
+                    mostrarMensagem("Login realizado com sucesso. Redirecionando...");
                     window.location.href = data.redirect_to || `/usuario/${encodeURIComponent(codigo_usuario)}`;
                 } else {
-                    mostrarMensagem(data.erro || "Não foi possível realizar o login.", true);
+                    mostrarMensagem(mensagemLoginAmigavel(data.erro), true);
                 }
             } catch (e) {
-                mostrarMensagem("Erro de comunicação com o servidor.", true);
+                mostrarMensagem("Não foi possível se comunicar com o servidor. Tente novamente em alguns instantes.", true);
             } finally {
                 btnEntrar.disabled = false;
             }

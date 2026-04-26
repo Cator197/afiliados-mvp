@@ -18,34 +18,89 @@ function labelPlataforma(plataforma) {
     return "";
 }
 
+function statusHumano(status, plataforma = "") {
+    if (status === "na_fila") {
+        return "Recebemos sua solicitação e ela já entrou na fila. Próximo passo: aguardar o início do processamento.";
+    }
+    if (status === "processando") {
+        return "Estamos gerando seu link com cashback agora. Próximo passo: aguarde a confirmação do link final.";
+    }
+    if (status === "concluido") {
+        return plataforma
+            ? `Tudo certo! Seu link da ${plataforma} foi gerado. Próximo passo: copie ou abra o link para finalizar sua compra.`
+            : "Tudo certo! Seu link foi gerado. Próximo passo: copie ou abra o link para finalizar sua compra.";
+    }
+    if (status === "erro") {
+        return "Não conseguimos gerar seu link desta vez. Próximo passo: revise a URL enviada e tente novamente.";
+    }
+    return `A solicitação está em andamento (status: ${status}). Próximo passo: aguarde nova atualização.`;
+}
+
 function mensagemAmigavelErro(erro) {
     const texto = (erro || "").toLowerCase();
 
     if (texto.includes("sessão inválida") || texto.includes("expirada")) {
-        return "Sua sessão expirou. Faça login novamente para continuar.";
+        return "Sua sessão expirou. O que aconteceu: seu login perdeu validade. Próximo passo: faça login novamente para continuar.";
     }
     if (texto.includes("url não informada")) {
-        return "Informe a URL do produto para continuar.";
+        return "Não recebemos a URL do produto. Próximo passo: cole o link e tente novamente.";
     }
     if (texto.includes("não pertence a uma plataforma suportada")) {
-        return "URL inválida ou plataforma não suportada. Use links do Mercado Livre ou Shopee.";
+        return "O link enviado não é válido para esta área. Próximo passo: use links do Mercado Livre ou Shopee e tente de novo.";
     }
     if (texto.includes("não autorizado")) {
-        return "Seu acesso expirou. Faça login novamente para continuar.";
+        return "Seu acesso não está autorizado no momento. Próximo passo: faça login novamente e tente de novo.";
     }
     if (texto.includes("não encontrado")) {
-        return "Não encontramos seus dados agora. Atualize a página e tente novamente.";
+        return "Não encontramos seus dados agora. Próximo passo: atualize a página e repita a solicitação.";
     }
 
-    return erro || "Não foi possível concluir sua solicitação agora. Tente novamente.";
+    return erro || "Não foi possível concluir sua solicitação agora. Próximo passo: tente novamente em alguns instantes.";
+}
+
+async function copiarLink(link) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(link);
+            mostrarStatus("Link copiado com sucesso. Próximo passo: cole no navegador para finalizar sua compra.");
+            return;
+        }
+
+        const inputAux = document.createElement("textarea");
+        inputAux.value = link;
+        inputAux.setAttribute("readonly", "");
+        inputAux.style.position = "absolute";
+        inputAux.style.left = "-9999px";
+        document.body.appendChild(inputAux);
+        inputAux.select();
+        document.execCommand("copy");
+        document.body.removeChild(inputAux);
+
+        mostrarStatus("Link copiado com sucesso. Próximo passo: cole no navegador para finalizar sua compra.");
+    } catch (e) {
+        mostrarStatus("Não foi possível copiar automaticamente. Próximo passo: copie manualmente o link exibido abaixo.", true);
+    }
 }
 
 function mostrarResultado(link) {
+    const historicoUrl = `/historico/${encodeURIComponent(window.USUARIO.codigo_usuario)}`;
+
     resultBox.style.display = "block";
     resultBox.innerHTML = `
-        <strong>Seu link afiliado foi gerado:</strong><br><br>
-        <a href="${link}" target="_blank">${link}</a>
+        <strong>Seu link afiliado foi gerado.</strong>
+        <p class="result-help">O que aconteceu: a geração foi concluída com sucesso. Próximo passo: copie ou abra o link para comprar.</p>
+        <a href="${link}" target="_blank" rel="noopener noreferrer" class="result-link" title="${link}">${link}</a>
+        <div class="actions result-actions">
+            <button id="btnCopiarLink" type="button">Copiar link</button>
+            <a class="btn" href="${link}" target="_blank" rel="noopener noreferrer">Abrir link</a>
+            <a class="btn btn-secondary" href="${historicoUrl}">Ver histórico</a>
+        </div>
     `;
+
+    const btnCopiarLink = document.getElementById("btnCopiarLink");
+    if (btnCopiarLink) {
+        btnCopiarLink.addEventListener("click", () => copiarLink(link));
+    }
 }
 
 function pararPolling() {
@@ -70,23 +125,14 @@ async function consultarJob(jobId) {
         const job = data.job;
         const status = job.status;
 
-        if (status === "na_fila") {
-            mostrarStatus("Sua solicitação foi recebida e está na fila de processamento.");
-            return;
-        }
-
-        if (status === "processando") {
-            mostrarStatus("Seu link está sendo gerado. Isso pode levar alguns instantes.");
+        if (status === "na_fila" || status === "processando") {
+            mostrarStatus(statusHumano(status));
             return;
         }
 
         if (status === "concluido") {
             const plataforma = labelPlataforma(job.plataforma);
-            mostrarStatus(
-                plataforma
-                    ? `Link da ${plataforma} gerado com sucesso.`
-                    : "Link gerado com sucesso."
-            );
+            mostrarStatus(statusHumano(status, plataforma));
             mostrarResultado(job.resultado_link);
             pararPolling();
             btnGerar.disabled = false;
@@ -94,15 +140,16 @@ async function consultarJob(jobId) {
         }
 
         if (status === "erro") {
-            mostrarStatus(mensagemAmigavelErro(job.mensagem_erro), true);
+            const erroDetalhado = mensagemAmigavelErro(job.mensagem_erro);
+            mostrarStatus(`${statusHumano(status)} Detalhes: ${erroDetalhado}`, true);
             pararPolling();
             btnGerar.disabled = false;
             return;
         }
 
-        mostrarStatus(`Status atual: ${status}`);
+        mostrarStatus(statusHumano(status));
     } catch (e) {
-        mostrarStatus("Erro de comunicação ao consultar o status do job.", true);
+        mostrarStatus("Não foi possível consultar o andamento da solicitação. Próximo passo: aguarde alguns segundos e tente novamente.", true);
         pararPolling();
         btnGerar.disabled = false;
     }
@@ -115,12 +162,12 @@ async function solicitarGeracao() {
     resultBox.innerHTML = "";
 
     if (!url) {
-        mostrarStatus("Cole uma URL de produto do Mercado Livre ou Shopee antes de continuar.", true);
+        mostrarStatus("Não recebemos o link do produto. Próximo passo: cole uma URL do Mercado Livre ou Shopee e continue.", true);
         return;
     }
 
     btnGerar.disabled = true;
-    mostrarStatus("Enviando solicitação para a fila...");
+    mostrarStatus("Solicitação enviada. Próximo passo: aguarde enquanto incluímos seu pedido na fila.");
 
     try {
         const resp = await fetch("/api/solicitar-link", {
@@ -142,20 +189,19 @@ async function solicitarGeracao() {
             return;
         }
 
-        const jobId = data.job_id;
         const plataforma = labelPlataforma(data.plataforma);
         mostrarStatus(
             plataforma
-                ? `Solicitação enviada para ${plataforma}. Aguardando processamento...`
-                : "Solicitação enviada. Aguardando processamento..."
+                ? `Solicitação recebida para ${plataforma}. Próximo passo: aguardar a geração do link.`
+                : "Solicitação recebida. Próximo passo: aguardar a geração do link."
         );
 
+        const jobId = data.job_id;
         pararPolling();
         pollingInterval = setInterval(() => consultarJob(jobId), 2000);
         consultarJob(jobId);
-
     } catch (e) {
-        mostrarStatus("Erro de comunicação com o servidor.", true);
+        mostrarStatus("Não foi possível enviar sua solicitação ao servidor. Próximo passo: tente novamente em alguns instantes.", true);
         btnGerar.disabled = false;
     }
 }

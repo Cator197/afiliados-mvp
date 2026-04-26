@@ -83,7 +83,15 @@ def run():
     _validate_config()
     logger.info("[METADATA] Worker iniciado. worker_id=%s", WORKER_ID)
 
-    driver = create_metadata_driver()
+    try:
+        driver = create_metadata_driver()
+    except Exception as exc:
+        logger.exception("[METADATA] Falha ao iniciar Chrome/driver: %s", exc)
+        raise RuntimeError(
+            "Não foi possível iniciar o Chrome do metadata_worker. "
+            "Verifique CHROME_BINARY_PATH, METADATA_CHROME_PROFILE_DIR e lock de perfil."
+        ) from exc
+
     bot = ProductMetadataBot(driver=driver)
 
     while True:

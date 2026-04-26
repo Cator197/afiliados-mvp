@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from datetime import datetime
 
@@ -16,6 +17,11 @@ from services.product_metadata_browser import create_metadata_driver
 
 logger = logging.getLogger("metadata_worker")
 REQUEST_TIMEOUT_SECONDS = 30
+LOGIN_URL = "https://www.mercadolivre.com.br/"
+LOGIN_PROMPT_TEXT = (
+    "Faça login no Mercado Livre no navegador aberto.\n"
+    "Depois de finalizar o login, volte aqui e pressione ENTER para continuar."
+)
 
 
 def now_str():
@@ -79,6 +85,25 @@ def send_metadata_error(link_id: int, mensagem_erro: str):
     response.raise_for_status()
 
 
+def _should_skip_login_prompt() -> bool:
+    return os.getenv("METADATA_SKIP_LOGIN_PROMPT", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _prepare_manual_login(driver):
+    logger.info("[METADATA] Abrindo Mercado Livre para login manual: %s", LOGIN_URL)
+    driver.get(LOGIN_URL)
+
+    if _should_skip_login_prompt():
+        logger.info(
+            "[METADATA] METADATA_SKIP_LOGIN_PROMPT ativo; pulando confirmação manual no terminal."
+        )
+        return
+
+    print(LOGIN_PROMPT_TEXT)
+    input()
+    logger.info("[METADATA] Login manual confirmado no terminal. Iniciando consumo da fila.")
+
+
 def run():
     _validate_config()
     logger.info("[METADATA] Worker iniciado. worker_id=%s", WORKER_ID)
@@ -93,6 +118,7 @@ def run():
         ) from exc
 
     bot = ProductMetadataBot(driver=driver)
+    _prepare_manual_login(driver)
 
     while True:
         link_id = None

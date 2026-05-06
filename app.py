@@ -47,6 +47,7 @@ from repositories.usuarios_repo import (
     get_user_by_codigo,
     get_user_by_codigo_any_status,
     get_user_by_id,
+    get_user_by_email,
     get_user_by_codigo_or_email,
     list_users,
     list_users_admin,
@@ -141,6 +142,11 @@ from services.email_service import (
     notify_admin_new_signup_request,
     notify_admin_password_reset_request,
     notify_admin_new_link_pending,
+    notify_user_signup_approved,
+    notify_user_signup_rejected,
+    notify_user_purchase_confirmed,
+    notify_user_purchase_not_confirmed,
+    notify_user_cashback_paid,
     send_password_reset_email,
 )
 
@@ -707,6 +713,7 @@ def admin_atualizar_link(link_id):
     if not link:
         return redirect(url_for("admin_links"))
 
+    status_anterior = link["status"]
     status = request.form.get("status", "").strip() or None
     percentual_cashback_raw = request.form.get("percentual_cashback", "").strip()
     observacoes_admin = request.form.get("observacoes_admin", "").strip() or None
@@ -762,6 +769,25 @@ def admin_atualizar_link(link_id):
     )
 
     mensagem_sucesso = "Link atualizado com sucesso."
+    status_novo = status or status_anterior
+    if status_novo != status_anterior:
+        usuario = get_user_by_id(link["usuario_id"])
+        email_result = {"ok": True}
+        if status_novo == LINK_STATUS_COMPRA_CONFIRMADA:
+            email_result = notify_user_purchase_confirmed(usuario, get_link_by_id(link_id))
+        elif status_novo == LINK_STATUS_COMPRA_NAO_CONFIRMADA:
+            email_result = notify_user_purchase_not_confirmed(usuario, get_link_by_id(link_id))
+        elif status_novo == LINK_STATUS_CASHBACK_PAGO:
+            email_result = notify_user_cashback_paid(usuario, get_link_by_id(link_id))
+
+        if not email_result.get("ok") and status_novo in {
+            LINK_STATUS_COMPRA_CONFIRMADA,
+            LINK_STATUS_COMPRA_NAO_CONFIRMADA,
+            LINK_STATUS_CASHBACK_PAGO,
+        }:
+            app.logger.warning("[EMAIL_USER] falha controlada ao enviar após atualizar link_id=%s", link_id)
+            mensagem_sucesso = "Link atualizado com sucesso. Status salvo, mas e-mail não foi enviado."
+
     return redirect(url_for("admin_links", sucesso=mensagem_sucesso))
 
 
@@ -842,6 +868,7 @@ def admin_atualizar_solicitacao(solicitacao_id):
     if not solicitacao:
         return redirect(url_for("admin_solicitacoes", erro="solicitacao_nao_encontrada"))
 
+    status_anterior = solicitacao["status"]
     status = request.form.get("status", "").strip()
     observacoes_admin = request.form.get("observacoes_admin", "")
 
@@ -854,6 +881,17 @@ def admin_atualizar_solicitacao(solicitacao_id):
         observacoes_admin=observacoes_admin,
         atualizado_em=now_str(),
     )
+
+    if status != status_anterior:
+        if status == "aprovado":
+            usuario = get_user_by_email((solicitacao["email"] or "").strip())
+            email_result = notify_user_signup_approved(usuario, solicitacao)
+            if not email_result.get("ok"):
+                app.logger.warning("[EMAIL_USER] falha controlada ao enviar após aprovação da solicitação_id=%s", solicitacao_id)
+        elif status == "rejeitado":
+            email_result = notify_user_signup_rejected(solicitacao, motivo=observacoes_admin)
+            if not email_result.get("ok"):
+                app.logger.warning("[EMAIL_USER] falha controlada ao enviar após rejeição da solicitação_id=%s", solicitacao_id)
 
     return redirect(url_for("admin_solicitacoes", sucesso="1"))
 

@@ -246,3 +246,170 @@ def send_password_reset_email(user, reset_url: str):
         "<p>Este link expira em 60 minutos.<br>Se você não solicitou isso, ignore este e-mail.</p>"
     )
     return send_email(to=email, subject=subject, body_text=body_text, body_html=body_html)
+
+
+def _user_history_url(user):
+    codigo_usuario = (_get_field(user, "codigo_usuario") or "").strip()
+    if codigo_usuario:
+        return f"https://minhaoferta.com/historico/{codigo_usuario}"
+    return "https://minhaoferta.com/login"
+
+
+def _format_cashback_value(link):
+    valor_cashback = _get_field(link, "valor_cashback")
+    if valor_cashback is None:
+        return "Aguardando cálculo"
+    try:
+        return f"{float(valor_cashback):.2f}".replace(".", ",")
+    except (TypeError, ValueError):
+        return "Aguardando cálculo"
+
+
+def notify_user_signup_approved(user, solicitacao=None):
+    try:
+        email = (_get_field(user, "email") or _get_field(solicitacao, "email") or "").strip()
+        if not email:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: usuário sem e-mail cadastrado")
+            return {"ok": False, "message": "Usuário sem e-mail cadastrado"}
+
+        nome = (_get_field(user, "nome") or _get_field(solicitacao, "nome_completo") or "").strip()
+        saudacao = f"Olá, {nome}." if nome else "Olá."
+        subject = "Cadastro aprovado - Minha Oferta"
+        body_text = (
+            f"{saudacao}\n\n"
+            "Seu cadastro no Minha Oferta foi aprovado.\n\n"
+            "Agora você já pode acessar sua conta e gerar links de compra com cashback.\n\n"
+            "Acesse:\n"
+            "https://minhaoferta.com/login\n\n"
+            "Se você não solicitou esse cadastro, ignore este e-mail."
+        )
+        result = send_email(to=email, subject=subject, body_text=body_text)
+        if result.get("ok"):
+            current_app.logger.info("[EMAIL_USER] cadastro aprovado enviado")
+        else:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", result.get("message", "erro desconhecido"))
+        return result
+    except Exception as exc:
+        current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", exc.__class__.__name__)
+        return {"ok": False, "message": "Falha controlada ao enviar e-mail."}
+
+
+def notify_user_signup_rejected(solicitacao, motivo=None):
+    try:
+        email = (_get_field(solicitacao, "email") or "").strip()
+        if not email:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: usuário sem e-mail cadastrado")
+            return {"ok": False, "message": "Usuário sem e-mail cadastrado"}
+
+        detalhe = ""
+        if motivo:
+            detalhe = f"\n\nObservação: {(str(motivo) or '').strip()}"
+
+        subject = "Atualização sobre sua solicitação de cadastro - Minha Oferta"
+        body_text = (
+            "Olá.\n\n"
+            "Sua solicitação de cadastro no Minha Oferta foi analisada, mas não foi aprovada neste momento.\n\n"
+            "Se quiser mais informações, entre em contato com nosso suporte."
+            f"{detalhe}"
+        )
+        result = send_email(to=email, subject=subject, body_text=body_text)
+        if result.get("ok"):
+            current_app.logger.info("[EMAIL_USER] cadastro rejeitado enviado")
+        else:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", result.get("message", "erro desconhecido"))
+        return result
+    except Exception as exc:
+        current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", exc.__class__.__name__)
+        return {"ok": False, "message": "Falha controlada ao enviar e-mail."}
+
+
+def notify_user_purchase_confirmed(user, link):
+    try:
+        email = (_get_field(user, "email") or "").strip()
+        if not email:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: usuário sem e-mail cadastrado")
+            return {"ok": False, "message": "Usuário sem e-mail cadastrado"}
+        nome = (_get_field(user, "nome") or "").strip()
+        saudacao = f"Olá, {nome}." if nome else "Olá."
+        descricao = (_get_field(link, "descricao_item") or "").strip() or "Produto não identificado"
+        valor_cashback = _format_cashback_value(link)
+        subject = "Compra confirmada - Cashback em preparação"
+        body_text = (
+            f"{saudacao}\n\n"
+            "Sua compra foi confirmada no Minha Oferta.\n\n"
+            f"Produto: {descricao}\n"
+            f"Cashback previsto: R$ {valor_cashback}\n\n"
+            "Agora o cashback está em preparação para pagamento.\n\n"
+            "Acompanhe seu histórico:\n"
+            f"{_user_history_url(user)}"
+        )
+        result = send_email(to=email, subject=subject, body_text=body_text)
+        if result.get("ok"):
+            current_app.logger.info("[EMAIL_USER] compra confirmada enviada")
+        else:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", result.get("message", "erro desconhecido"))
+        return result
+    except Exception as exc:
+        current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", exc.__class__.__name__)
+        return {"ok": False, "message": "Falha controlada ao enviar e-mail."}
+
+
+def notify_user_purchase_not_confirmed(user, link):
+    try:
+        email = (_get_field(user, "email") or "").strip()
+        if not email:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: usuário sem e-mail cadastrado")
+            return {"ok": False, "message": "Usuário sem e-mail cadastrado"}
+        nome = (_get_field(user, "nome") or "").strip()
+        saudacao = f"Olá, {nome}." if nome else "Olá."
+        descricao = (_get_field(link, "descricao_item") or "").strip() or "Produto não identificado"
+        subject = "Compra não confirmada - Minha Oferta"
+        body_text = (
+            f"{saudacao}\n\n"
+            "Não conseguimos confirmar a compra relacionada a este link.\n\n"
+            f"Produto: {descricao}\n"
+            "Status: Compra não confirmada\n\n"
+            "Isso pode acontecer quando a compra não foi feita pelo link gerado, foi cancelada ou não foi identificada pela plataforma.\n\n"
+            "Acompanhe seu histórico:\n"
+            f"{_user_history_url(user)}"
+        )
+        result = send_email(to=email, subject=subject, body_text=body_text)
+        if result.get("ok"):
+            current_app.logger.info("[EMAIL_USER] compra não confirmada enviada")
+        else:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", result.get("message", "erro desconhecido"))
+        return result
+    except Exception as exc:
+        current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", exc.__class__.__name__)
+        return {"ok": False, "message": "Falha controlada ao enviar e-mail."}
+
+
+def notify_user_cashback_paid(user, link):
+    try:
+        email = (_get_field(user, "email") or "").strip()
+        if not email:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: usuário sem e-mail cadastrado")
+            return {"ok": False, "message": "Usuário sem e-mail cadastrado"}
+        nome = (_get_field(user, "nome") or "").strip()
+        saudacao = f"Olá, {nome}." if nome else "Olá."
+        descricao = (_get_field(link, "descricao_item") or "").strip() or "Produto não identificado"
+        valor_cashback = _format_cashback_value(link)
+        subject = "Cashback pago - Minha Oferta"
+        body_text = (
+            f"{saudacao}\n\n"
+            "O cashback de uma compra foi marcado como pago.\n\n"
+            f"Produto: {descricao}\n"
+            f"Valor do cashback: R$ {valor_cashback}\n\n"
+            "Obrigado por usar o Minha Oferta.\n\n"
+            "Acompanhe seu histórico:\n"
+            f"{_user_history_url(user)}"
+        )
+        result = send_email(to=email, subject=subject, body_text=body_text)
+        if result.get("ok"):
+            current_app.logger.info("[EMAIL_USER] cashback pago enviado")
+        else:
+            current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", result.get("message", "erro desconhecido"))
+        return result
+    except Exception as exc:
+        current_app.logger.warning("[EMAIL_USER] falha controlada ao enviar: %s", exc.__class__.__name__)
+        return {"ok": False, "message": "Falha controlada ao enviar e-mail."}

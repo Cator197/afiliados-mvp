@@ -17,6 +17,11 @@ from config import (
 )
 
 
+def _safe_field(value, fallback="não informado"):
+    raw = "" if value is None else str(value).strip()
+    return raw or fallback
+
+
 def _missing_config_fields() -> list[str]:
     missing = []
     if not SMTP_HOST:
@@ -99,3 +104,107 @@ def send_test_email(to=None):
     )
 
     return send_email(to=target, subject=subject, body_text=body_text, body_html=body_html)
+
+
+def notify_admin_new_signup_request(solicitacao):
+    try:
+        if not EMAIL_ENABLED:
+            current_app.logger.info("[EMAIL_NOTIFY] notificação de cadastro ignorada: EMAIL_ENABLED=false")
+            return {"ok": False, "message": "Envio de e-mail desativado."}
+
+        target = (ADMIN_NOTIFICATION_EMAIL or "").strip()
+        if not target:
+            current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar cadastro: ADMIN_NOTIFICATION_EMAIL ausente")
+            return {"ok": False, "message": "E-mail do admin não configurado."}
+
+        subject = "Nova solicitação de cadastro - Minha Oferta"
+        body_text = (
+            "Olá,\n\n"
+            "Uma nova solicitação de cadastro foi recebida no Minha Oferta.\n\n"
+            f"Nome: {_safe_field(solicitacao.get('nome_completo'))}\n"
+            f"E-mail: {_safe_field(solicitacao.get('email'))}\n"
+            f"Telefone/WhatsApp: {_safe_field(solicitacao.get('whatsapp'))}\n"
+            f"Código desejado: {_safe_field(solicitacao.get('codigo_indicacao'))}\n"
+            f"Data: {_safe_field(solicitacao.get('criado_em'))}\n\n"
+            "Acesse o painel admin para analisar:\n"
+            "https://minhaoferta.com/admin/solicitacoes"
+        )
+        result = send_email(to=target, subject=subject, body_text=body_text)
+        if result.get("ok"):
+            current_app.logger.info("[EMAIL_NOTIFY] notificação de cadastro enviada")
+        else:
+            current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar cadastro: %s", result.get("message", "erro desconhecido"))
+        return result
+    except Exception as exc:
+        current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar cadastro: %s", exc.__class__.__name__)
+        return {"ok": False, "message": "Falha controlada ao notificar cadastro."}
+
+
+def notify_admin_password_reset_request(reset_request):
+    try:
+        if not EMAIL_ENABLED:
+            current_app.logger.info("[EMAIL_NOTIFY] notificação de reset ignorada: EMAIL_ENABLED=false")
+            return {"ok": False, "message": "Envio de e-mail desativado."}
+
+        target = (ADMIN_NOTIFICATION_EMAIL or "").strip()
+        if not target:
+            current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar reset: ADMIN_NOTIFICATION_EMAIL ausente")
+            return {"ok": False, "message": "E-mail do admin não configurado."}
+
+        subject = "Solicitação de recuperação de senha - Minha Oferta"
+        body_text = (
+            "Olá,\n\n"
+            "Um usuário solicitou recuperação de senha.\n\n"
+            f"Código do usuário: {_safe_field(reset_request.get('codigo_usuario'))}\n"
+            f"E-mail informado: {_safe_field(reset_request.get('email'))}\n"
+            f"Data: {_safe_field(reset_request.get('criado_em'))}\n\n"
+            "Acesse o painel admin para analisar:\n"
+            "https://minhaoferta.com/admin/reset-senhas\n\n"
+            "Observação: este fluxo continua manual/admin neste PR."
+        )
+        result = send_email(to=target, subject=subject, body_text=body_text)
+        if result.get("ok"):
+            current_app.logger.info("[EMAIL_NOTIFY] notificação de reset enviada")
+        else:
+            current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar reset: %s", result.get("message", "erro desconhecido"))
+        return result
+    except Exception as exc:
+        current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar reset: %s", exc.__class__.__name__)
+        return {"ok": False, "message": "Falha controlada ao notificar reset."}
+
+
+def notify_admin_new_link_pending(link):
+    try:
+        if not EMAIL_ENABLED:
+            current_app.logger.info("[EMAIL_NOTIFY] notificação de link ignorada: EMAIL_ENABLED=false")
+            return {"ok": False, "message": "Envio de e-mail desativado."}
+
+        target = (ADMIN_NOTIFICATION_EMAIL or "").strip()
+        if not target:
+            current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar link: ADMIN_NOTIFICATION_EMAIL ausente")
+            return {"ok": False, "message": "E-mail do admin não configurado."}
+
+        subject = "Novo link aguardando verificação - Minha Oferta"
+        descricao = _safe_field(link.get('descricao_item'), fallback='Descrição ainda não atualizada')
+        body_text = (
+            "Olá,\n\n"
+            "Um novo link foi gerado e está aguardando verificação.\n\n"
+            f"Usuário: {_safe_field(link.get('usuario_nome'))}\n"
+            f"Código do usuário: {_safe_field(link.get('codigo_usuario'))}\n"
+            f"Descrição/produto: {descricao}\n"
+            f"URL original: {_safe_field(link.get('url_original'))}\n"
+            f"Link afiliado: {_safe_field(link.get('url_afiliado'))}\n"
+            f"Status: {_safe_field(link.get('status'))}\n"
+            f"Data: {_safe_field(link.get('criado_em'))}\n\n"
+            "Acesse o painel admin:\n"
+            "https://minhaoferta.com/admin/links"
+        )
+        result = send_email(to=target, subject=subject, body_text=body_text)
+        if result.get("ok"):
+            current_app.logger.info("[EMAIL_NOTIFY] notificação de link enviado")
+        else:
+            current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar link: %s", result.get("message", "erro desconhecido"))
+        return result
+    except Exception as exc:
+        current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar link: %s", exc.__class__.__name__)
+        return {"ok": False, "message": "Falha controlada ao notificar link."}

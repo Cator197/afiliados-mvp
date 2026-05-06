@@ -881,3 +881,6 @@ th {
     color: var(--color-warning-text);
     font-size: 12px;
 }
+
+
+.robot-status-card{display:flex;flex-direction:column;gap:10px}.robot-status-header{display:flex;gap:10px;align-items:flex-start}.robot-status-indicator{width:12px;height:12px;border-radius:999px;display:inline-block;margin-top:8px}.robot-status-ok{background:var(--color-success-bg);border:1px solid var(--color-success-border);color:var(--color-success-text)}.robot-status-warning{background:var(--color-warning-bg);border:1px solid var(--color-warning-border);color:var(--color-warning-text)}.robot-status-danger{background:var(--color-error-bg);border:1px solid var(--color-error-border);color:var(--color-error-text)}.robot-status-muted{background:#f3f4f6;border:1px solid #d1d5db;color:#374151}.robot-status-running{background:var(--color-info-bg);border:1px solid var(--color-info-border);color:var(--color-info-text)}.robot-next-action{font-weight:600;margin:0}.robot-technical-details summary{cursor:pointer}.robot-log-item{padding:8px 0;border-top:1px dashed #d9e1ea}.robot-log-item:first-child{border-top:0}@media (max-width:768px){.robot-status-header{flex-direction:row}.robot-status-card .actions button{width:100%}}

@@ -30,7 +30,7 @@
         <div class="card"><h3>Usuários sem e-mail</h3><p><strong style="font-size:2rem;">{{ summary.usuarios_sem_email or 0 }}</strong></p><a class="btn" href="{{ url_for('admin_usuarios') }}">Abrir</a></div>
         <div class="card"><h3>Cadastros pendentes</h3><p><strong style="font-size:2rem;">{{ summary.cadastros_pendentes or 0 }}</strong></p><a class="btn" href="{{ url_for('admin_solicitacoes') }}">Abrir</a></div>
         <div class="card"><h3>Reset manual pendente</h3><p><strong style="font-size:2rem;">{{ summary.reset_pendente or 0 }}</strong></p><a class="btn" href="{{ url_for('admin_reset_senhas') }}">Abrir</a></div>
-        <div class="card"><h3>Saúde do robô</h3><p><strong>{{ robot_status }}</strong></p><a class="btn" href="{{ url_for('admin_links') }}">Ver health check</a></div>
+        <div class="card robot-status-card robot-status-muted"><h3>Saúde do robô</h3><p><strong>{{ robot_status }}</strong></p><p class="small">Online indica worker conectado; o health check valida navegador e sessão no Mercado Livre.</p><a class="btn" href="{{ url_for('admin_links') }}">Ver health check</a></div>
     </div>
 
     <div class="card">

@@ -23,15 +23,28 @@
             </div>
         </div>
 
-        <div id="botStatusBox" class="message-box alert alert-loading" role="status" aria-live="polite">
-            Verificando status do robô...
-        </div>
-        <div class="card">
-            <div class="actions no-margin">
+        <div id="robotStatusCard" class="card robot-status-card robot-status-muted" role="status" aria-live="polite">
+            <div class="robot-status-header">
+                <span id="robotStatusIndicator" class="robot-status-indicator robot-status-muted" aria-hidden="true"></span>
+                <div>
+                    <h3 id="robotStatusTitle">Verificando status do robô...</h3>
+                    <p id="robotStatusSubtitle" class="small">Aguardando dados do worker e do último diagnóstico.</p>
+                </div>
+            </div>
+            <p id="robotNextAction" class="robot-next-action">Próxima ação: Aguarde alguns segundos.</p>
+            <p class="small">
+                <strong>Worker:</strong> <span id="workerHeartbeatSummary">Verificando...</span><br>
+                Online indica que o worker está conectado. O teste do robô valida se o navegador e a sessão do Mercado Livre estão funcionando.
+            </p>
+            <details class="robot-technical-details">
+                <summary>Detalhes técnicos</summary>
+                <div id="robotTechnicalStatus" class="small">Status técnico: -</div>
+            </details>
+            <div class="actions">
                 <button type="button" id="runHealthcheckBtn">Testar robô agora</button>
             </div>
-            <div id="healthcheckLastBox" class="small" style="margin-top:8px;">Sem diagnóstico recente.</div>
-            <div id="healthcheckLogsBox" class="small" style="margin-top:8px;"></div>
+            <div id="healthcheckLastBox" class="small">Sem diagnóstico recente.</div>
+            <div id="healthcheckLogsBox" class="small"></div>
         </div>
 
         <div class="card">
@@ -257,44 +270,59 @@
     </div>
     <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
     <script>
+    const ROBOT_STATUS_MAP = {
+        ok: { state: "ok", title: "Robô funcionando", action: "Nenhuma ação necessária." },
+        login_necessario: { state: "warning", title: "Login manual necessário", action: "Abra o navegador do robô e faça login no Mercado Livre." },
+        driver_ausente: { state: "danger", title: "Navegador do robô não encontrado", action: "Reinicie o worker na máquina do robô." },
+        selenium_nao_responsivo: { state: "danger", title: "Navegador não está respondendo", action: "Feche o Chrome do robô e inicie o worker novamente." },
+        erro: { state: "danger", title: "Erro no robô", action: "Verifique o log do diagnóstico." },
+        executando: { state: "running", title: "Teste em andamento", action: "Aguarde alguns segundos." },
+        solicitado: { state: "running", title: "Teste solicitado", action: "Aguarde o worker executar o diagnóstico." },
+        "sem diagnóstico": { state: "muted", title: "Sem diagnóstico recente", action: "Clique em \"Testar robô agora\"." },
+        offline: { state: "danger", title: "Worker offline", action: "Verifique se o remote_worker.py está rodando." },
+    };
+    function getRobotPresentation(status, workerOnline) {
+        if (!workerOnline) return ROBOT_STATUS_MAP.offline;
+        return ROBOT_STATUS_MAP[status] || ROBOT_STATUS_MAP["sem diagnóstico"];
+    }
+    function setRobotState(presentation, technicalText) {
+        const card = document.getElementById("robotStatusCard");
+        const indicator = document.getElementById("robotStatusIndicator");
+        const title = document.getElementById("robotStatusTitle");
+        const action = document.getElementById("robotNextAction");
+        const tech = document.getElementById("robotTechnicalStatus");
+        const stateClass = `robot-status-${presentation.state}`;
+        card.className = `card robot-status-card ${stateClass}`;
+        indicator.className = `robot-status-indicator ${stateClass}`;
+        title.textContent = presentation.title;
+        action.textContent = `Próxima ação: ${presentation.action}`;
+        tech.textContent = technicalText;
+    }
     async function carregarStatusBot() {
-        const box = document.getElementById("botStatusBox");
-
+        const subtitle = document.getElementById("robotStatusSubtitle");
+        const workerSummary = document.getElementById("workerHeartbeatSummary");
         try {
-            const resp = await fetch("/api/admin/bot-status");
-            const data = await resp.json();
-
-            if (!data.ok) {
-                box.textContent = "Não foi possível verificar o status do robô.";
-                box.className = "message-box alert alert-error";
+            const [botResp, workerResp] = await Promise.all([fetch("/api/admin/bot-status"), fetch("/api/admin/worker-status")]);
+            const bot = await botResp.json();
+            const worker = await workerResp.json();
+            const workerOnline = !!worker?.worker?.is_online;
+            workerSummary.textContent = workerOnline ? `Online · último heartbeat em ${worker.worker.last_heartbeat_em || "-"}` : "Offline ou sem heartbeat recente.";
+            if (!bot.ok) {
+                setRobotState(ROBOT_STATUS_MAP.erro, "Status técnico: erro de consulta do bot-status");
+                subtitle.textContent = "Não foi possível atualizar o diagnóstico do robô.";
                 return;
             }
-
-            const status = data.bot.status;
-            const message = data.bot.message;
-
-            const label = data.bot.label || status;
-            const nextAction = data.bot.next_action ? `<br><span class="small">Próxima ação: ${data.bot.next_action}</span>` : "";
-            box.innerHTML = `<strong>Status do robô:</strong> ${label}<br><span class="small">${message}</span>${nextAction}`;
-
-            if (status === "online") {
-                box.className = "message-box alert alert-success";
-            } else if (status === "aguardando_login_manual") {
-                box.className = "message-box alert alert-warning";
-            } else if (status === "erro_recuperacao") {
-                box.className = "message-box alert alert-error";
-            } else {
-                box.className = "message-box alert alert-info";
-            }
+            const current = bot.bot?.current_diagnostic || {};
+            const status = current.status || "sem diagnóstico";
+            const presentation = getRobotPresentation(status, workerOnline);
+            subtitle.textContent = `Última verificação: ${current.finalizou_em || current.criado_em || "sem registro"}`;
+            setRobotState(presentation, `Status técnico: ${status} · etapa=${current.etapa || "-"} · msg=${current.mensagem || "-"}`);
         } catch (e) {
-            box.textContent = "Erro ao consultar o status do robô.";
-            box.className = "message-box alert alert-error";
+            workerSummary.textContent = "Não foi possível consultar heartbeat.";
+            subtitle.textContent = "Erro ao consultar os endpoints de status.";
+            setRobotState(ROBOT_STATUS_MAP.erro, "Status técnico: falha de rede ou resposta inesperada");
         }
     }
-
-    carregarStatusBot();
-    setInterval(carregarStatusBot, 5000);
-
     async function carregarHealthchecks() {
         const lastBox = document.getElementById("healthcheckLastBox");
         const logsBox = document.getElementById("healthcheckLogsBox");
@@ -309,35 +337,27 @@
                 return;
             }
             const last = logs[0];
-            lastBox.innerHTML = `<strong>Último diagnóstico:</strong> [${last.label || last.status}] etapa=${last.etapa || "-"} · ${last.mensagem || "-"} · ${last.finalizou_em || last.criado_em || "-"}`;
-            logsBox.innerHTML = logs.slice(0, 5).map(l => `<div>• [${l.label || l.status}] ${l.etapa || "-"} - ${l.mensagem || "-"} (${l.finalizou_em || l.criado_em || "-"})</div>`).join("");
-        } catch (e) {}
+            lastBox.innerHTML = `<strong>Último diagnóstico:</strong> ${last.label || last.status} · ${last.finalizou_em || last.criado_em || "-"}`;
+            logsBox.innerHTML = logs.slice(0, 5).map(l => {
+                const friendly = (ROBOT_STATUS_MAP[l.status] || ROBOT_STATUS_MAP["sem diagnóstico"]).title;
+                const state = (ROBOT_STATUS_MAP[l.status] || ROBOT_STATUS_MAP["sem diagnóstico"]).state;
+                return `<div class="robot-log-item"><span class="badge robot-status-${state}">${friendly}</span> <span>${l.finalizou_em || l.criado_em || "-"}</span><div class="small">Etapa: ${l.etapa || "-"} · ${l.mensagem || "-"}</div></div>`;
+            }).join("");
+        } catch (e) { logsBox.innerHTML = '<div class="small">Erro ao carregar logs recentes.</div>'; }
     }
-
     document.getElementById("runHealthcheckBtn").addEventListener("click", async () => {
         const btn = document.getElementById("runHealthcheckBtn");
         btn.disabled = true;
+        setRobotState(ROBOT_STATUS_MAP.executando, "Status técnico: diagnóstico solicitado manualmente");
         try {
-            await fetch("/api/admin/worker-healthcheck/run", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-Token": "{{ csrf_token }}",
-                },
-                body: JSON.stringify({}),
-            });
-        } finally {
-            btn.disabled = false;
-            carregarHealthchecks();
-        }
+            await fetch("/api/admin/worker-healthcheck/run", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": "{{ csrf_token }}" }, body: JSON.stringify({}) });
+        } finally { btn.disabled = false; carregarStatusBot(); carregarHealthchecks(); }
     });
-
+    carregarStatusBot();
     carregarHealthchecks();
+    setInterval(carregarStatusBot, 5000);
     setInterval(carregarHealthchecks, 5000);
-
-    if (window.initAdminLinksPage) {
-        window.initAdminLinksPage();
-    }
+    if (window.initAdminLinksPage) { window.initAdminLinksPage(); }
 </script>
 </body>
 </html>

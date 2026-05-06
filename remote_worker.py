@@ -16,7 +16,7 @@ from config import (
     WORKER_POLL_INTERVAL_SECONDS,
 )
 from services.afiliado_bot import LoginNecessarioError
-from services.platform_utils import PLATFORM_MERCADOLIVRE, PLATFORM_SHOPEE, SUPPORTED_PLATFORMS
+from services.platform_utils import ACTIVE_PLATFORMS, PLATFORM_MERCADOLIVRE, PLATFORM_SHOPEE
 
 
 logger = logging.getLogger("remote_worker")
@@ -220,8 +220,8 @@ def process_one_job(bot, job: dict) -> None:
 
     if not url_original:
         raise RuntimeError("url_original ausente no job claimado")
-    if plataforma not in SUPPORTED_PLATFORMS:
-        mensagem = f"Plataforma '{plataforma}' não suportada pelo worker."
+    if plataforma not in ACTIVE_PLATFORMS:
+        mensagem = "Plataforma Shopee está desativada neste momento." if plataforma == PLATFORM_SHOPEE else f"Plataforma '{plataforma}' não suportada pelo worker."
         logger.warning("[JOB %s] %s", job_id, mensagem)
         send_error(job_id=job_id, mensagem_erro=mensagem)
         return
@@ -230,7 +230,7 @@ def process_one_job(bot, job: dict) -> None:
     logger.info(
         "[WORKER] job %s enviado para bot %s.",
         job_id,
-        "Shopee" if plataforma == PLATFORM_SHOPEE else "Mercado Livre",
+        "Mercado Livre",
     )
     logger.info("[JOB %s] Processando job da plataforma %s com navegador persistente.", job_id, plataforma)
 
@@ -243,8 +243,6 @@ def process_one_job(bot, job: dict) -> None:
         raise
     except Exception as exc:
         logger.exception("[JOB %s] Job concluído com erro.", job_id)
-        if plataforma == PLATFORM_SHOPEE:
-            logger.error("[ERRO SHOPEE] falha isolada, não afeta ML | job=%s", job_id)
         send_error(job_id=job_id, mensagem_erro=str(exc))
 
 
@@ -334,8 +332,9 @@ def run() -> None:
             logger.info("[JOB %s] Job claimado pelo worker=%s", job["id"], WORKER_ID)
             plataforma = (job.get("plataforma") or PLATFORM_MERCADOLIVRE).strip().lower()
             plataforma_em_execucao = plataforma
-            if plataforma not in SUPPORTED_PLATFORMS:
-                send_error(job_id=job["id"], mensagem_erro=f"Plataforma '{plataforma}' não suportada.")
+            if plataforma not in ACTIVE_PLATFORMS:
+                mensagem = "Plataforma Shopee está desativada neste momento." if plataforma == PLATFORM_SHOPEE else f"Plataforma '{plataforma}' não suportada."
+                send_error(job_id=job["id"], mensagem_erro=mensagem)
                 continue
 
             bot = get_bot(plataforma=plataforma, job_id=job["id"])

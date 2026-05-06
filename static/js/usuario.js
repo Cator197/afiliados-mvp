@@ -21,7 +21,7 @@ function setLoadingBotao(loading) {
 
 function labelPlataforma(plataforma) {
     if (plataforma === "mercadolivre") return "Mercado Livre";
-    if (plataforma === "shopee") return "Shopee";
+    if (plataforma === "shopee") return "Shopee (legado)";
     return "";
 }
 
@@ -53,7 +53,7 @@ function mensagemAmigavelErro(erro) {
         return "Não recebemos a URL do produto. Próximo passo: cole o link e tente novamente.";
     }
     if (texto.includes("não pertence a uma plataforma suportada")) {
-        return "Link inválido para esta área. Próximo passo: use links do Mercado Livre ou Shopee.";
+        return "No momento aceitamos apenas links do Mercado Livre.";
     }
     if (texto.includes("não autorizado")) {
         return "Seu acesso não está autorizado agora. Próximo passo: faça login novamente.";

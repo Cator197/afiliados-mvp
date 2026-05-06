@@ -37,12 +37,12 @@ class WorkerPlatformRoutingTests(unittest.TestCase):
     @patch("queue_manager.create_link_gerado")
     @patch("queue_manager.update_job_status")
     @patch("queue_manager.get_bot")
-    def test_routes_shopee_to_shopee_bot(self, mock_get_bot, _mock_update, _mock_link):
-        mock_get_bot.return_value = FakeBot(link="https://shopee.afiliado")
-
+    def test_shopee_is_controlled_error(self, mock_get_bot, mock_update, mock_link):
         queue_manager.process_job(self._job("shopee"))
 
-        mock_get_bot.assert_called_with(job_id="job-shopee", plataforma="shopee")
+        mock_get_bot.assert_not_called()
+        mock_link.assert_not_called()
+        self.assertEqual(mock_update.call_args_list[-1].kwargs["status"], "erro")
 
     @patch("queue_manager.create_link_gerado")
     @patch("queue_manager.update_job_status")
@@ -54,19 +54,6 @@ class WorkerPlatformRoutingTests(unittest.TestCase):
         mock_link.assert_not_called()
         self.assertEqual(mock_update.call_args_list[-1].kwargs["status"], "erro")
         self.assertIn("não suportada", mock_update.call_args_list[-1].kwargs["mensagem_erro"])
-
-    @patch("queue_manager.create_link_gerado")
-    @patch("queue_manager.update_job_status")
-    @patch("queue_manager.get_bot")
-    def test_shopee_error_marks_job_without_breaking_flow(self, mock_get_bot, mock_update, mock_link):
-        mock_get_bot.return_value = FakeBot(exc=RuntimeError("não autenticado"))
-
-        queue_manager.process_job(self._job("shopee"))
-
-        mock_link.assert_not_called()
-        self.assertEqual(mock_update.call_args_list[-1].kwargs["status"], "erro")
-        self.assertIn("não autenticado", mock_update.call_args_list[-1].kwargs["mensagem_erro"])
-
 
 if __name__ == "__main__":
     unittest.main()

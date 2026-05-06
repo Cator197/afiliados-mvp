@@ -7,7 +7,6 @@ from database import get_connection
 from repositories.usuarios_repo import hash_user_password
 from services.platform_utils import (
     PLATFORM_MERCADOLIVRE,
-    PLATFORM_SHOPEE,
     detect_platform_from_url,
 )
 
@@ -81,7 +80,7 @@ class PlatformSupportTests(unittest.TestCase):
         )
         self.assertEqual(
             detect_platform_from_url("https://shopee.com.br/product/1/2"),
-            PLATFORM_SHOPEE,
+            "shopee",
         )
         self.assertIsNone(detect_platform_from_url("https://example.com/produto"))
 
@@ -111,7 +110,7 @@ class PlatformSupportTests(unittest.TestCase):
         self.assertEqual(row["plataforma"], PLATFORM_MERCADOLIVRE)
         self.assertEqual(row["status"], "na_fila")
 
-    def test_shopee_job_creation_enters_normal_queue_flow(self):
+    def test_shopee_job_creation_is_blocked(self):
         self._login()
 
         response = self.client.post(
@@ -122,24 +121,18 @@ class PlatformSupportTests(unittest.TestCase):
             headers={"X-CSRF-Token": self.csrf_token},
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         payload = response.get_json()
-        self.assertTrue(payload["ok"])
-        self.assertEqual(payload["plataforma"], PLATFORM_SHOPEE)
-        self.assertEqual(payload["plataforma_label"], "Shopee")
+        self.assertFalse(payload["ok"])
+        self.assertIn("apenas links do Mercado Livre", payload["erro"])
 
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT plataforma, status, mensagem_erro FROM jobs WHERE id = ?",
-            (payload["job_id"],),
-        )
+        cursor.execute("SELECT COUNT(*) AS total FROM jobs")
         row = cursor.fetchone()
         conn.close()
 
-        self.assertEqual(row["plataforma"], PLATFORM_SHOPEE)
-        self.assertEqual(row["status"], "na_fila")
-        self.assertIsNone(row["mensagem_erro"])
+        self.assertEqual(row["total"], 0)
 
     def test_solicitar_link_sem_csrf_retorna_403(self):
         self._login()

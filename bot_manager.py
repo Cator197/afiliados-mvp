@@ -180,6 +180,62 @@ def get_bot(job_id: str | None = None, plataforma: str = PLATFORM_MERCADOLIVRE):
         return bot
 
 
+
+def get_existing_bot_or_none(plataforma: str = PLATFORM_MERCADOLIVRE):
+    with _bot_lock:
+        bot = _bots.get(plataforma)
+        driver = _drivers.get(plataforma)
+
+        if bot is None or driver is None:
+            return None
+
+        if getattr(bot, "driver", None) is not driver:
+            logger.warning("[BOT MANAGER] Bot registrado sem vínculo válido de driver para %s.", plataforma)
+            return None
+
+        return bot
+
+
+def get_existing_driver_status(plataforma: str = PLATFORM_MERCADOLIVRE) -> dict:
+    with _bot_lock:
+        bot = _bots.get(plataforma)
+        driver = _drivers.get(plataforma)
+
+    bot_existe = bot is not None
+    driver_existe = driver is not None
+
+    if not bot_existe:
+        return {
+            "bot_existe": False,
+            "driver_existe": driver_existe,
+            "driver_responsivo": False,
+            "mensagem": "Nenhum bot registrado para a plataforma.",
+        }
+
+    if not driver_existe:
+        return {
+            "bot_existe": True,
+            "driver_existe": False,
+            "driver_responsivo": False,
+            "mensagem": "Bot existe, mas sem driver associado.",
+        }
+
+    if getattr(bot, "driver", None) is not driver:
+        return {
+            "bot_existe": True,
+            "driver_existe": True,
+            "driver_responsivo": False,
+            "mensagem": "Bot/driver inconsistentes no registro interno.",
+        }
+
+    responsivo = driver_esta_vivo(driver)
+    return {
+        "bot_existe": True,
+        "driver_existe": True,
+        "driver_responsivo": responsivo,
+        "mensagem": "Driver existente e responsivo." if responsivo else "Driver existente, porém não responsivo.",
+    }
+
 def reiniciar_bot(job_id: str | None = None, plataforma: str = PLATFORM_MERCADOLIVRE):
 
     with _bot_lock:

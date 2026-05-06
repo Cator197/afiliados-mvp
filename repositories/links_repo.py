@@ -71,7 +71,7 @@ def get_link_by_id(link_id):
     return row
 
 
-def get_all_links(status=None, codigo_usuario=None, plataforma=None, page=1, limit=20):
+def get_all_links(status=None, codigo_usuario=None, plataforma=None, descricao=None, page=1, limit=20):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -93,6 +93,10 @@ def get_all_links(status=None, codigo_usuario=None, plataforma=None, page=1, lim
     if plataforma:
         base_query += " AND lg.plataforma = ?"
         params.append(plataforma)
+
+    if descricao:
+        base_query += " AND LOWER(COALESCE(lg.descricao_item, '')) LIKE ?"
+        params.append(f"%{descricao.lower()}%")
 
     cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))
     total = cursor.fetchone()["total"]

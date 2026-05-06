@@ -591,12 +591,15 @@ th {
     border-color: #dbe9d0;
 }
 
-.actions-row {
+.admin-link-actions {
+    justify-content: center;
+    align-items: center;
     flex-direction: column;
-    align-items: stretch;
+    gap: var(--space-2);
+    min-width: 170px;
 }
 
-.actions-row button {
+.admin-link-actions button {
     width: 100%;
 }
 

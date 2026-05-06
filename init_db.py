@@ -98,6 +98,19 @@ def create_tables():
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS password_reset_attempts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip TEXT,
+        identificador_hash TEXT NOT NULL,
+        usuario_id INTEGER,
+        criado_em TEXT NOT NULL,
+        permitido INTEGER NOT NULL DEFAULT 1,
+        motivo TEXT,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    )
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS admin_users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -341,6 +354,25 @@ def ensure_password_reset_requests_table():
     conn.close()
 
 
+def ensure_password_reset_attempts_table():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS password_reset_attempts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip TEXT,
+        identificador_hash TEXT NOT NULL,
+        usuario_id INTEGER,
+        criado_em TEXT NOT NULL,
+        permitido INTEGER NOT NULL DEFAULT 1,
+        motivo TEXT,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    )
+    """)
+    conn.commit()
+    conn.close()
+
+
 def ensure_password_reset_tokens_table():
     conn = get_connection()
     cursor = conn.cursor()
@@ -439,6 +471,7 @@ if __name__ == "__main__":
     ensure_worker_heartbeats_table()
     ensure_cadastro_solicitacoes_table()
     ensure_password_reset_requests_table()
+    ensure_password_reset_attempts_table()
     create_default_admin()
     create_sample_users()
     print("[OK] Banco inicializado com sucesso.")

@@ -98,7 +98,12 @@ from repositories.password_reset_requests_repo import (
     mark_reset_token_used,
     invalidate_active_tokens_for_user,
 )
-from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_usuarios_email_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table, ensure_password_reset_tokens_table, ensure_worker_diagnostics_table
+from repositories.password_reset_attempts_repo import (
+    count_recent_attempts_by_identifier,
+    count_recent_attempts_by_ip,
+    create_password_reset_attempt,
+)
+from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_usuarios_email_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table, ensure_password_reset_tokens_table, ensure_password_reset_attempts_table, ensure_worker_diagnostics_table
 from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns
 from services.platform_utils import (
     PLATFORM_MERCADOLIVRE,
@@ -169,6 +174,7 @@ ensure_worker_diagnostics_table()
 ensure_cadastro_solicitacoes_table()
 ensure_password_reset_requests_table()
 ensure_password_reset_tokens_table()
+ensure_password_reset_attempts_table()
 
 
 def login_required_admin(f):
@@ -1241,18 +1247,50 @@ def solicitar_cadastro_publico():
 
 @app.route("/api/esqueci-senha", methods=["POST"])
 def solicitar_reset_senha_publico():
-    blocked_response = rate_limit_response("api_esqueci_senha", PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS)
-    if blocked_response:
-        return blocked_response
-    register_rate_limit_attempt("api_esqueci_senha", PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS)
-
     data = request.get_json(silent=True) or {}
-    identificador = (data.get("identificador") or data.get("codigo_usuario") or "").strip()
-    if not identificador:
+    identificador = (data.get("identificador") or data.get("codigo_usuario") or "")
+    identificador_normalizado = identificador.strip().lower()
+    if not identificador_normalizado:
         return jsonify({"ok": False, "erro": "Informe o código do usuário ou e-mail."}), 400
 
+    identificador_hash = hashlib.sha256(identificador_normalizado.encode("utf-8")).hexdigest()
+    ip_solicitante = get_client_ip()
+    limite_identificador = count_recent_attempts_by_identifier(identificador_hash, minutes=30)
+    limite_ip = count_recent_attempts_by_ip(ip_solicitante, minutes=30)
+
+    if limite_identificador >= 3 or limite_ip >= 10:
+        create_password_reset_attempt(
+            ip=ip_solicitante,
+            identificador_hash=identificador_hash,
+            usuario_id=None,
+            permitido=False,
+            motivo="rate_limit",
+            criado_em=now_str(),
+        )
+        app.logger.warning(
+            "[RESET_RATE_LIMIT] bloqueado por identificador_hash=%s ip=%s",
+            identificador_hash,
+            ip_solicitante,
+        )
+        return jsonify({"ok": False, "erro": "Muitas solicitações foram feitas. Aguarde alguns minutos e tente novamente."}), 429
+
     mensagem_generica = "Se os dados estiverem corretos, enviaremos instruções para o e-mail cadastrado."
-    usuario = get_user_by_codigo_or_email(identificador)
+    usuario = get_user_by_codigo_or_email(identificador_normalizado)
+    usuario_id = usuario["id"] if usuario else None
+    create_password_reset_attempt(
+        ip=ip_solicitante,
+        identificador_hash=identificador_hash,
+        usuario_id=usuario_id,
+        permitido=True,
+        motivo="ok",
+        criado_em=now_str(),
+    )
+    app.logger.info(
+        "[RESET_RATE_LIMIT] tentativa registrada ip=%s permitido=1 motivo=ok identificador_hash=%s",
+        ip_solicitante,
+        identificador_hash,
+    )
+
     if not usuario or not usuario["ativo"]:
         return jsonify({"ok": True, "message": mensagem_generica}), 200
 
@@ -1273,6 +1311,7 @@ def solicitar_reset_senha_publico():
         invalidate_active_tokens_for_user(usuario["id"])
         return jsonify({"ok": False, "erro": envio.get("message", "Falha ao enviar e-mail.")}), 503
 
+    app.logger.info("[RESET_RATE_LIMIT] reset permitido usuario_id=%s ip=%s", usuario["id"], ip_solicitante)
     return jsonify({"ok": True, "message": mensagem_generica}), 200
 
 

@@ -116,6 +116,12 @@
             return `<a href="${sanitizedUrl}" target="_blank" class="table-link">${sanitizedUrl}</a>`;
         }
 
+        function badgeHtml(link) {
+            const badgeClass = (link?.status_badge_class || "").trim() || "status-muted";
+            const label = (link?.status_label || "").trim() || "Status não identificado";
+            return `<span class="badge ${escapeHtml(badgeClass)}">${escapeHtml(label)}</span>`;
+        }
+
         function renderHistorico(links) {
             historicoLista.innerHTML = links.map(link => {
                 const descricao = (link.descricao_item || "").trim() || "Produto em processamento";
@@ -153,10 +159,21 @@
                     fetch(resumoUrl)
                 ]);
 
-                const data = await respHistorico.json();
-                const resumoData = await respResumo.json();
+                if (!respHistorico.ok || !respResumo.ok) {
+                    console.error("[historico] erro HTTP", {
+                        historico_status: respHistorico.status,
+                        resumo_status: respResumo.status,
+                    });
+                    mostrarMensagem("Erro ao carregar histórico.", "error");
+                    historicoLista.innerHTML = `<div class="empty-state"><strong>Não foi possível carregar os dados.</strong><p>Próximo passo: atualize a página ou tente novamente em instantes.</p></div>`;
+                    return;
+                }
+
+                const data = await respHistorico.json().catch(() => ({}));
+                const resumoData = await respResumo.json().catch(() => ({}));
 
                 if (!data.ok || !resumoData.ok) {
+                    console.error("[historico] payload inválido", { data, resumoData });
                     mostrarMensagem(data.erro || resumoData.erro || "Erro ao carregar histórico.", "error");
                     historicoLista.innerHTML = `<div class="empty-state"><strong>Não foi possível carregar os dados.</strong><p>Próximo passo: atualize a página ou tente novamente em instantes.</p></div>`;
                     return;
@@ -164,7 +181,7 @@
 
                 atualizarResumo(resumoData.summary);
 
-                const links = data.links || [];
+                const links = Array.isArray(data.links) ? data.links : [];
 
                 if (!links.length) {
                     mostrarMensagem("Você ainda não gerou links. Próximo passo: volte para a tela anterior e gere seu primeiro link.", "warning");
@@ -181,6 +198,7 @@
                 mostrarMensagem(`Histórico atualizado com ${links.length} registro(s).`, "success");
                 renderHistorico(links);
             } catch (e) {
+                console.error("[historico] erro inesperado", e);
                 mostrarMensagem("Erro de comunicação com o servidor.", "error");
                 historicoLista.innerHTML = `<div class="empty-state"><strong>Erro ao carregar histórico.</strong><p>Próximo passo: atualize a página e tente novamente.</p></div>`;
             }

@@ -3,6 +3,8 @@ import logging
 import os
 import sys
 import hmac
+import hashlib
+import secrets
 from config import HOST, PORT, DEBUG
 from datetime import datetime, timedelta
 from functools import wraps
@@ -45,8 +47,10 @@ from repositories.usuarios_repo import (
     get_user_by_codigo,
     get_user_by_codigo_any_status,
     get_user_by_id,
+    get_user_by_codigo_or_email,
     list_users,
     update_user_active_status,
+    update_user_email,
     update_user_password,
     validate_user_login,
 )
@@ -89,8 +93,12 @@ from repositories.password_reset_requests_repo import (
     get_password_reset_request_by_id,
     list_password_reset_requests,
     update_password_reset_request,
+    create_password_reset_token,
+    get_valid_reset_token,
+    mark_reset_token_used,
+    invalidate_active_tokens_for_user,
 )
-from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table, ensure_worker_diagnostics_table
+from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_usuarios_email_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table, ensure_password_reset_tokens_table, ensure_worker_diagnostics_table
 from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns
 from services.platform_utils import (
     PLATFORM_MERCADOLIVRE,
@@ -111,6 +119,7 @@ from services.email_service import (
     notify_admin_new_signup_request,
     notify_admin_password_reset_request,
     notify_admin_new_link_pending,
+    send_password_reset_email,
 )
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -150,6 +159,7 @@ def configure_logging():
 
 configure_logging()
 ensure_usuarios_password_column()
+ensure_usuarios_email_column()
 ensure_jobs_worker_columns()
 ensure_jobs_platform_column()
 ensure_links_platform_column()
@@ -158,6 +168,7 @@ ensure_worker_heartbeats_table()
 ensure_worker_diagnostics_table()
 ensure_cadastro_solicitacoes_table()
 ensure_password_reset_requests_table()
+ensure_password_reset_tokens_table()
 
 
 def login_required_admin(f):
@@ -878,6 +889,7 @@ def admin_criar_usuario():
             valores={
                 "codigo_usuario": request.args.get("codigo_usuario", "").strip(),
                 "nome": nome_prefill,
+                "email": request.args.get("email", "").strip(),
                 "senha": "",
                 "aprovar_solicitacao": request.args.get("aprovar_solicitacao", "").strip() == "1",
             },
@@ -891,6 +903,7 @@ def admin_criar_usuario():
     codigo_usuario = request.form.get("codigo_usuario", "").strip().upper()
     nome = request.form.get("nome", "").strip()
     senha = request.form.get("senha", "")
+    email = request.form.get("email", "").strip().lower() or None
     aprovar_solicitacao = request.form.get("aprovar_solicitacao") == "on"
 
     erro = None
@@ -912,6 +925,7 @@ def admin_criar_usuario():
             valores={
                 "codigo_usuario": codigo_usuario,
                 "nome": nome,
+                "email": email or "",
                 "senha": "",
                 "aprovar_solicitacao": aprovar_solicitacao,
             },
@@ -926,6 +940,7 @@ def admin_criar_usuario():
         ativo=1,
         criado_em=now_str(),
         must_change_password=1,
+        email=email,
     )
 
     if solicitacao and aprovar_solicitacao:
@@ -942,6 +957,7 @@ def admin_criar_usuario():
         valores={
             "codigo_usuario": "",
             "nome": "",
+            "email": "",
             "senha": "",
             "aprovar_solicitacao": False,
         },
@@ -1204,41 +1220,66 @@ def solicitar_reset_senha_publico():
     blocked_response = rate_limit_response("api_esqueci_senha", PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS)
     if blocked_response:
         return blocked_response
-
     register_rate_limit_attempt("api_esqueci_senha", PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS)
 
     data = request.get_json(silent=True) or {}
-    codigo_usuario = data.get("codigo_usuario", "").strip().upper()
+    identificador = (data.get("identificador") or data.get("codigo_usuario") or "").strip()
+    if not identificador:
+        return jsonify({"ok": False, "erro": "Informe o código do usuário ou e-mail."}), 400
 
-    if not codigo_usuario:
-        return jsonify({"ok": False, "erro": "Informe seu código de usuário."}), 400
-
-    usuario = get_user_by_codigo_any_status(codigo_usuario)
+    mensagem_generica = "Se os dados estiverem corretos, enviaremos instruções para o e-mail cadastrado."
+    usuario = get_user_by_codigo_or_email(identificador)
     if not usuario or not usuario["ativo"]:
-        return jsonify({"ok": False, "erro": "Usuário não encontrado ou inativo."}), 404
+        return jsonify({"ok": True, "message": mensagem_generica}), 200
 
-    solicitacao_existente = get_active_password_reset_request(codigo_usuario)
-    if solicitacao_existente:
-        return jsonify({"ok": False, "erro": "Já existe uma solicitação de redefinição em andamento para esse usuário."}), 409
+    email = (usuario["email"] or "").strip() if "email" in usuario.keys() else ""
+    if not email:
+        return jsonify({"ok": False, "erro": "Este usuário não possui e-mail cadastrado. Entre em contato com o suporte."}), 400
 
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     criado_em = now_str()
-    request_id = create_password_reset_request(
-        codigo_usuario=codigo_usuario,
-        criado_em=criado_em,
-        atualizado_em=criado_em,
-    )
-    notify_admin_password_reset_request({
-        "id": request_id,
-        "codigo_usuario": codigo_usuario,
-        "email": (usuario["email"] if usuario and "email" in usuario.keys() else None),
-        "criado_em": criado_em,
-    })
+    expira_em = (datetime.now() + timedelta(minutes=60)).strftime("%Y-%m-%d %H:%M:%S")
+    invalidate_active_tokens_for_user(usuario["id"])
+    create_password_reset_token(usuario["id"], email, token_hash, criado_em, expira_em, get_client_ip(), request.headers.get("User-Agent", "")[:255])
 
-    return jsonify({
-        "ok": True,
-        "message": "Solicitação enviada. O administrador irá gerar uma nova senha temporária para você.",
-        "request_id": request_id,
-    }), 201
+    reset_url = f"https://minhaoferta.com/redefinir-senha?token={token}"
+    envio = send_password_reset_email(usuario, reset_url)
+    if not envio.get("ok"):
+        invalidate_active_tokens_for_user(usuario["id"])
+        return jsonify({"ok": False, "erro": envio.get("message", "Falha ao enviar e-mail.")}), 503
+
+    return jsonify({"ok": True, "message": mensagem_generica}), 200
+
+
+@app.route("/redefinir-senha", methods=["GET"])
+def pagina_redefinir_senha():
+    token = request.args.get("token", "").strip()
+    return render_template("redefinir_senha.html", token=token)
+
+
+@app.route("/api/redefinir-senha", methods=["POST"])
+def redefinir_senha_com_token():
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    nova_senha = data.get("nova_senha", "")
+    confirmar_senha = data.get("confirmar_senha", "")
+
+    if not token:
+        return jsonify({"ok": False, "erro": "Link inválido ou expirado."}), 400
+    if len(nova_senha) < MIN_USER_PASSWORD_LENGTH:
+        return jsonify({"ok": False, "erro": f"A nova senha deve ter no mínimo {MIN_USER_PASSWORD_LENGTH} caracteres."}), 400
+    if nova_senha != confirmar_senha:
+        return jsonify({"ok": False, "erro": "A confirmação da nova senha não confere."}), 400
+
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    token_row = get_valid_reset_token(token_hash, now_str())
+    if not token_row:
+        return jsonify({"ok": False, "erro": "Link inválido ou expirado."}), 400
+
+    update_user_password(user_id=token_row["usuario_id"], password=nova_senha, must_change_password=0)
+    mark_reset_token_used(token_row["id"], now_str())
+    return jsonify({"ok": True, "message": "Senha redefinida com sucesso.", "redirect_to": url_for("pagina_inicial")})
 
 
 @app.route("/api/solicitar-link", methods=["POST"])

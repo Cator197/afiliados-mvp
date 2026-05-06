@@ -18,6 +18,7 @@ def create_tables():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         codigo_usuario TEXT UNIQUE NOT NULL,
         nome TEXT NOT NULL,
+        email TEXT,
         password_hash TEXT,
         ativo INTEGER NOT NULL DEFAULT 1,
         criado_em TEXT NOT NULL,
@@ -242,6 +243,17 @@ def ensure_usuarios_password_column():
     conn.close()
 
 
+def ensure_usuarios_email_column():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(usuarios)")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+    if "email" not in existing_columns:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
+    conn.commit()
+    conn.close()
+
+
 def ensure_worker_heartbeats_table():
     conn = get_connection()
     cursor = conn.cursor()
@@ -325,6 +337,28 @@ def ensure_password_reset_requests_table():
     )
     """)
 
+    conn.commit()
+    conn.close()
+
+
+def ensure_password_reset_tokens_table():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        email TEXT,
+        token_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'ativo',
+        criado_em TEXT NOT NULL,
+        expira_em TEXT NOT NULL,
+        usado_em TEXT,
+        ip_solicitante TEXT,
+        user_agent TEXT,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    )
+    """)
     conn.commit()
     conn.close()
 

@@ -61,15 +61,15 @@
                                     </form>
                                 </td>
                                 <td>
-                                    <span class="badge {{ 'compra_confirmada' if usuario.ativo else 'erro' }}">
+                                    <span class="badge {{ 'status-success' if usuario.ativo else 'status-muted' }}">
                                         {{ 'Ativo' if usuario.ativo else 'Inativo' }}
                                     </span>
                                 </td>
                                 <td>
                                     {% if usuario.must_change_password %}
-                                        <span class="badge row-warning">Troca obrigatória pendente</span>
+                                        <span class="badge status-warning">Troca obrigatória pendente</span>
                                     {% else %}
-                                        <span class="badge compra_confirmada">Já definiu a própria senha</span>
+                                        <span class="badge status-success">Já definiu a própria senha</span>
                                     {% endif %}
                                 </td>
                                 <td>

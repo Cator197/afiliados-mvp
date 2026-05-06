@@ -377,10 +377,36 @@ th {
     color: #204a87;
 }
 
-.badge.na_fila,
-.badge.processando {
+
+.badge.status-info,
+.badge.status-processing {
+    background: #eaf2ff;
+    color: #2457a7;
+}
+
+.badge.status-warning {
     background: #fff4d6;
     color: #8a6500;
+}
+
+.badge.status-success {
+    background: #e6f7ea;
+    color: #237a3b;
+}
+
+.badge.status-danger {
+    background: #fdeaea;
+    color: #a12b2b;
+}
+
+.badge.status-muted {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.badge.status-paid {
+    background: #dff7e8;
+    color: #0f5f2f;
 }
 
 .badge.aguardando_verificacao {

@@ -119,6 +119,12 @@ from config import (
     SMTP_FROM_EMAIL,
     ADMIN_NOTIFICATION_EMAIL,
 )
+from services.status_labels import (
+    get_status_label,
+    get_status_description,
+    get_status_badge_class,
+    get_status_next_action,
+)
 from services.email_service import (
     send_test_email,
     notify_admin_new_signup_request,
@@ -611,6 +617,9 @@ def admin_links():
         erro=request.args.get("erro", "").strip() or None,
         sucesso=request.args.get("sucesso", "").strip() or None,
         platform_labels=PLATFORM_LABELS,
+        get_status_label=get_status_label,
+        get_status_badge_class=get_status_badge_class,
+        get_status_next_action=get_status_next_action,
         filtros={
             "status": status or "",
             "codigo_usuario": codigo_usuario or "",
@@ -1461,6 +1470,8 @@ def worker_claim_job():
             "plataforma": job["plataforma"],
             "plataforma_label": get_platform_label(job["plataforma"]),
             "status": job["status"],
+            "status_label": get_status_label(job["status"], context="user"),
+            "status_badge_class": get_status_badge_class(job["status"]),
             "assigned_worker_id": job["assigned_worker_id"],
             "claimed_em": job["claimed_em"],
             "criado_em": job["criado_em"],
@@ -1661,6 +1672,7 @@ def admin_worker_healthcheck_logs():
                 "id": row["id"],
                 "worker_id": row["worker_id"],
                 "status": row["status"],
+                "label": get_status_label(row["status"], context="worker"),
                 "etapa": row["etapa"],
                 "mensagem": row["mensagem"],
                 "detalhes": row["detalhes"],
@@ -1857,6 +1869,8 @@ def consultar_job(job_id):
             "plataforma": job["plataforma"],
             "plataforma_label": get_platform_label(job["plataforma"]),
             "status": job["status"],
+            "status_label": get_status_label(job["status"], context="user"),
+            "status_badge_class": get_status_badge_class(job["status"]),
             "resultado_link": job["resultado_link"],
             "mensagem_erro": job["mensagem_erro"],
             "criado_em": job["criado_em"],
@@ -1934,6 +1948,9 @@ def listar_links_usuario(codigo_usuario):
                 "plataforma": link["plataforma"],
                 "plataforma_label": get_platform_label(link["plataforma"]),
                 "status": link["status"],
+                "status_label": get_status_label(link["status"], context="user"),
+                "status_description": get_status_description(link["status"], context="user"),
+                "status_badge_class": get_status_badge_class(link["status"]),
                 "descricao_item": link["descricao_item"],
                 "foto_item_url": link["foto_item_url"],
                 "valor_cashback": link["valor_cashback"],
@@ -2025,6 +2042,8 @@ def api_bot_status():
         "ok": True,
         "bot": {
             "status": status,
+            "label": get_status_label(status, context="worker"),
+            "next_action": get_status_next_action(status, context="worker"),
             "message": message,
         }
     })

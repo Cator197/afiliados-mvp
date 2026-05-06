@@ -10,7 +10,7 @@
     <div class="container">
         <h1>Histórico de {{ usuario.nome }}</h1>
         <p class="subtitle">
-            Aqui você acompanha os links já gerados e o andamento do cashback.
+            Aqui você acompanha os links já gerados e o andamento do cashback. Os valores podem ficar pendentes até a confirmação da compra.
         </p>
 
         <div class="actions">
@@ -63,25 +63,6 @@
             mensagem.textContent = texto;
             mensagem.setAttribute("role", tipo === "error" ? "alert" : "status");
             mensagem.setAttribute("aria-live", tipo === "error" ? "assertive" : "polite");
-        }
-
-        const STATUS_MAP = {
-            na_fila: "Na fila",
-            processando: "Processando",
-            gerado: "Link gerado",
-            aguardando_verificacao: "Em análise",
-            compra_confirmada: "Compra confirmada",
-            compra_nao_confirmada: "Compra não confirmada",
-            cashback_pago: "Cashback pago",
-            erro: "Erro"
-        };
-
-        function statusLabel(status) {
-            return STATUS_MAP[status] || status || "-";
-        }
-
-        function badgeHtml(status) {
-            return `<span class="badge ${status || "desconhecido"}">${statusLabel(status)}</span>`;
         }
 
         function formatarMoeda(valor) {
@@ -151,7 +132,8 @@
                             onerror="this.onerror=null;this.src='${PLACEHOLDER_IMAGE}';"
                         >
                         <p class="history-card-desc">${escapeHtml(descricao)}</p>
-                        <p><strong>Status:</strong> ${badgeHtml(link.status)}</p>
+                        <p><strong>Status:</strong> ${badgeHtml(link)}</p>
+                        ${link.status_description ? `<p class="small">${escapeHtml(link.status_description)}</p>` : ""}
                         <p><strong>Valor do cashback:</strong> <span class="${cashbackClass}">${valorMoedaOuTraco(link.valor_cashback)}</span></p>
                         <p><strong>Link afiliado:</strong> ${cardLinkAfiliado(link.url_afiliado)}</p>
                         <p><strong>Data:</strong> ${formatarData(link.criado_em)}</p>

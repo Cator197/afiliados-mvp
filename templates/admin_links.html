@@ -60,6 +60,7 @@
             <div class="filters-header">
                 <strong>Filtros</strong>
                 <span class="small">Use os filtros para acelerar a conferência manual.</span>
+                <span class="small">Use o campo Status para atualizar a etapa do link. Os valores são recalculados ao salvar.</span>
             </div>
             <div class="filters-grid">
                 <div class="input-group no-margin">
@@ -71,10 +72,10 @@
                     <label for="status">Filtrar por status</label>
                     <select id="status" name="status">
                         <option value="">Todos</option>
-                        <option value="aguardando_verificacao" {% if filtros.status == 'aguardando_verificacao' %}selected{% endif %}>aguardando_verificacao</option>
-                        <option value="compra_confirmada" {% if filtros.status == 'compra_confirmada' %}selected{% endif %}>compra_confirmada</option>
-                        <option value="compra_nao_confirmada" {% if filtros.status == 'compra_nao_confirmada' %}selected{% endif %}>compra_nao_confirmada</option>
-                        <option value="cashback_pago" {% if filtros.status == 'cashback_pago' %}selected{% endif %}>cashback_pago</option>
+                        <option value="aguardando_verificacao" {% if filtros.status == 'aguardando_verificacao' %}selected{% endif %}>{{ get_status_label("aguardando_verificacao", context="admin") }}</option>
+                        <option value="compra_confirmada" {% if filtros.status == 'compra_confirmada' %}selected{% endif %}>{{ get_status_label("compra_confirmada", context="admin") }}</option>
+                        <option value="compra_nao_confirmada" {% if filtros.status == 'compra_nao_confirmada' %}selected{% endif %}>{{ get_status_label("compra_nao_confirmada", context="admin") }}</option>
+                        <option value="cashback_pago" {% if filtros.status == 'cashback_pago' %}selected{% endif %}>{{ get_status_label("cashback_pago", context="admin") }}</option>
                     </select>
                 </div>
 
@@ -171,19 +172,14 @@
                                         </span>
                                     </td>
                                     <td data-label="Status" class="col-status">
-                                        <span class="badge status-badge {{ link.status }}">{{ link.status }}</span>
-                                        {% if link.status == 'aguardando_verificacao' %}
-                                            <span class="status-help status-help-alert">Ação pendente: conferir compra.</span>
-                                        {% elif link.status == 'compra_confirmada' %}
-                                            <span class="status-help">Pronto para avançar para pagamento.</span>
-                                        {% elif link.status == 'cashback_pago' %}
-                                            <span class="status-help">Fluxo concluído.</span>
-                                        {% endif %}
+                                        <span class="badge status-badge {{ get_status_badge_class(link.status) }}" data-status="{{ link.status }}">{{ get_status_label(link.status, context="admin") }}</span>
+                                        {% set next_action = get_status_next_action(link.status, context="admin") %}
+                                        {% if next_action %}<span class="status-help">Próxima ação: {{ next_action }}.</span>{% endif %}
                                         <select name="status" class="field-compact">
-                                            <option value="aguardando_verificacao" {% if link.status == 'aguardando_verificacao' %}selected{% endif %}>aguardando_verificacao</option>
-                                            <option value="compra_confirmada" {% if link.status == 'compra_confirmada' %}selected{% endif %}>compra_confirmada</option>
-                                            <option value="compra_nao_confirmada" {% if link.status == 'compra_nao_confirmada' %}selected{% endif %}>compra_nao_confirmada</option>
-                                            <option value="cashback_pago" {% if link.status == 'cashback_pago' %}selected{% endif %}>cashback_pago</option>
+                                            <option value="aguardando_verificacao" {% if link.status == 'aguardando_verificacao' %}selected{% endif %}>{{ get_status_label("aguardando_verificacao", context="admin") }}</option>
+                                            <option value="compra_confirmada" {% if link.status == 'compra_confirmada' %}selected{% endif %}>{{ get_status_label("compra_confirmada", context="admin") }}</option>
+                                            <option value="compra_nao_confirmada" {% if link.status == 'compra_nao_confirmada' %}selected{% endif %}>{{ get_status_label("compra_nao_confirmada", context="admin") }}</option>
+                                            <option value="cashback_pago" {% if link.status == 'cashback_pago' %}selected{% endif %}>{{ get_status_label("cashback_pago", context="admin") }}</option>
                                         </select>
                                     </td>
                                     <td data-label="Descrição do item" class="col-notes">
@@ -276,7 +272,9 @@
             const status = data.bot.status;
             const message = data.bot.message;
 
-            box.innerHTML = `<strong>Status do robô:</strong> ${status}<br><span class="small">${message}</span>`;
+            const label = data.bot.label || status;
+            const nextAction = data.bot.next_action ? `<br><span class="small">Próxima ação: ${data.bot.next_action}</span>` : "";
+            box.innerHTML = `<strong>Status do robô:</strong> ${label}<br><span class="small">${message}</span>${nextAction}`;
 
             if (status === "online") {
                 box.className = "message-box alert alert-success";
@@ -310,8 +308,8 @@
                 return;
             }
             const last = logs[0];
-            lastBox.innerHTML = `<strong>Último diagnóstico:</strong> [${last.status}] etapa=${last.etapa || "-"} · ${last.mensagem || "-"} · ${last.finalizou_em || last.criado_em || "-"}`;
-            logsBox.innerHTML = logs.slice(0, 5).map(l => `<div>• [${l.status}] ${l.etapa || "-"} - ${l.mensagem || "-"} (${l.finalizou_em || l.criado_em || "-"})</div>`).join("");
+            lastBox.innerHTML = `<strong>Último diagnóstico:</strong> [${last.label || last.status}] etapa=${last.etapa || "-"} · ${last.mensagem || "-"} · ${last.finalizou_em || last.criado_em || "-"}`;
+            logsBox.innerHTML = logs.slice(0, 5).map(l => `<div>• [${l.label || l.status}] ${l.etapa || "-"} - ${l.mensagem || "-"} (${l.finalizou_em || l.criado_em || "-"})</div>`).join("");
         } catch (e) {}
     }
 

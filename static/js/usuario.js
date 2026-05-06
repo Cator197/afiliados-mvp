@@ -27,20 +27,20 @@ function labelPlataforma(plataforma) {
 
 function statusHumano(status, plataforma = "") {
     if (status === "na_fila") {
-        return "Recebemos sua solicitação e ela já entrou na fila. Próximo passo: aguarde o início do processamento.";
+        return "Na fila. Recebemos sua solicitação e já vamos processar.";
     }
     if (status === "processando") {
-        return "Estamos gerando seu link com cashback. Próximo passo: aguarde a confirmação do link final.";
+        return "Gerando seu link. Aguarde um instante.";
     }
     if (status === "concluido") {
         return plataforma
-            ? `Tudo certo! Seu link da ${plataforma} foi gerado. Próximo passo: copie ou abra o link.`
-            : "Tudo certo! Seu link foi gerado. Próximo passo: copie ou abra o link.";
+            ? `Link gerado para ${plataforma}. Próximo passo: copie ou abra o link.`
+            : "Link gerado. Próximo passo: copie ou abra o link.";
     }
     if (status === "erro") {
-        return "Não conseguimos gerar seu link desta vez. Próximo passo: revise a URL e tente novamente.";
+        return "Não foi possível gerar o link. Revise a URL e tente novamente.";
     }
-    return `A solicitação está em andamento (status: ${status}). Próximo passo: aguarde nova atualização.`;
+    return "Sua solicitação está em andamento.";
 }
 
 function mensagemAmigavelErro(erro) {

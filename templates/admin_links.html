@@ -68,6 +68,11 @@
                 </div>
 
                 <div class="input-group no-margin">
+                    <label for="descricao">Buscar por descrição</label>
+                    <input type="text" id="descricao" name="descricao" value="{{ filtros.descricao }}" placeholder="Ex: controle">
+                </div>
+
+                <div class="input-group no-margin">
                     <label for="plataforma">Filtrar por plataforma</label>
                     <select id="plataforma" name="plataforma">
                         <option value="">Todas</option>
@@ -87,12 +92,12 @@
             <span class="small">Total: {{ total }} registros · Página {{ page }} de {{ total_pages }}</span>
             <div class="actions no-margin">
                 {% if has_prev %}
-                    <a class="btn" href="{{ url_for('admin_links', page=page-1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma) }}">Anterior</a>
+                    <a class="btn" href="{{ url_for('admin_links', page=page-1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma, descricao=filtros.descricao) }}">Anterior</a>
                 {% else %}
                     <button type="button" disabled>Anterior</button>
                 {% endif %}
                 {% if has_next %}
-                    <a class="btn" href="{{ url_for('admin_links', page=page+1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma) }}">Próxima</a>
+                    <a class="btn" href="{{ url_for('admin_links', page=page+1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma, descricao=filtros.descricao) }}">Próxima</a>
                 {% else %}
                     <button type="button" disabled>Próxima</button>
                 {% endif %}
@@ -220,18 +225,14 @@
                                     </td>
                                     <td data-label="Ação">
                                         <div
-                                            class="actions actions-row no-margin"
+                                            class="actions admin-link-actions no-margin"
                                             data-link-actions="true"
                                             data-link-id="{{ link.id }}"
                                             data-metadata-endpoint="{{ url_for('admin_atualizar_infos_link', link_id=link.id) }}"
                                             data-csrf-token="{{ csrf_token }}"
                                         >
-                                            <button type="submit" name="acao" value="salvar" data-default-text="Salvar">Salvar</button>
-                                            <button type="submit" class="btn btn-secondary" name="acao" value="recalcular">Recalcular valores</button>
-                                            <button type="button" class="btn btn-secondary btn-refresh-metadata">Atualizar infos</button>
-                                            <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="compra_confirmada" data-confirm-message="Confirmar compra deste link?">Confirmar compra</button>
-                                            <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="compra_nao_confirmada" data-confirm-message="Marcar como compra não confirmada?">Não confirmada</button>
-                                            <button type="button" class="btn btn-secondary btn-quick-status" data-quick-status="cashback_pago" data-confirm-message="Marcar cashback como pago?">Marcar cashback pago</button>
+                                            <button type="submit" name="acao" value="salvar" data-default-text="Salvar" title="Salva os campos desta linha">Salvar</button>
+                                            <button type="button" class="btn btn-secondary btn-refresh-metadata" title="Reenfileira atualização de metadados deste item">Atualizar infos</button>
                                         </div>
                                     </td>
                                 </form>

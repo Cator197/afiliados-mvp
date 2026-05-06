@@ -543,6 +543,7 @@ def admin_links():
     status = request.args.get("status", "").strip() or None
     codigo_usuario = request.args.get("codigo_usuario", "").strip() or None
     plataforma = request.args.get("plataforma", "").strip() or None
+    descricao = request.args.get("descricao", "").strip() or request.args.get("q", "").strip() or None
     page = parse_positive_int(request.args.get("page"), 1)
     limit = parse_positive_int(request.args.get("limit"), 20)
 
@@ -550,6 +551,7 @@ def admin_links():
         status=status,
         codigo_usuario=codigo_usuario,
         plataforma=plataforma,
+        descricao=descricao,
         page=page,
         limit=limit,
     )
@@ -574,6 +576,7 @@ def admin_links():
             "status": status or "",
             "codigo_usuario": codigo_usuario or "",
             "plataforma": plataforma or "",
+            "descricao": descricao or "",
         }
     )
 
@@ -643,7 +646,7 @@ def admin_atualizar_link(link_id):
         atualizado_em=atualizado_em,
     )
 
-    mensagem_sucesso = "Valores recalculados com sucesso." if acao == "recalcular" else "Link atualizado com sucesso."
+    mensagem_sucesso = "Link atualizado com sucesso."
     return redirect(url_for("admin_links", sucesso=mensagem_sucesso))
 
 

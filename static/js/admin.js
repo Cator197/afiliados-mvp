@@ -22,32 +22,6 @@
         box.textContent = texto;
     }
 
-    function handleQuickStatusButtons(form) {
-        const quickButtons = form.querySelectorAll('.btn-quick-status');
-        const statusSelect = form.querySelector('select[name="status"]');
-
-        quickButtons.forEach((button) => {
-            button.addEventListener('click', function () {
-                if (!statusSelect) {
-                    return;
-                }
-
-                const targetStatus = button.dataset.quickStatus;
-                const confirmMessage = button.dataset.confirmMessage || 'Confirmar ação?';
-
-                if (!targetStatus) {
-                    return;
-                }
-
-                if (!window.confirm(confirmMessage)) {
-                    return;
-                }
-
-                statusSelect.value = targetStatus;
-                form.requestSubmit();
-            });
-        });
-    }
 
     function handleSubmitFeedback(form) {
         form.addEventListener('submit', function (event) {
@@ -144,7 +118,6 @@
     window.initAdminLinksPage = function initAdminLinksPage() {
         const forms = document.querySelectorAll('table tbody form');
         forms.forEach((form) => {
-            handleQuickStatusButtons(form);
             handleSubmitFeedback(form);
             handleMetadataRefreshButton(form);
         });

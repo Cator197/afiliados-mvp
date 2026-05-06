@@ -95,6 +95,7 @@ from init_db import ensure_jobs_platform_column, ensure_links_platform_column, e
 from services.platform_utils import (
     PLATFORM_MERCADOLIVRE,
     PLATFORM_SHOPEE,
+    PLATFORM_MERCADOLIVRE,
     detect_platform_from_url,
 )
 
@@ -247,7 +248,7 @@ def now_str():
 
 PLATFORM_LABELS = {
     PLATFORM_MERCADOLIVRE: "Mercado Livre",
-    PLATFORM_SHOPEE: "Shopee",
+    PLATFORM_SHOPEE: "Shopee (legado)",
 }
 
 
@@ -1215,8 +1216,15 @@ def solicitar_link():
     if not plataforma:
         return jsonify({
             "ok": False,
-            "erro": "A URL informada não pertence a uma plataforma suportada."
+            "erro": "No momento aceitamos apenas links do Mercado Livre."
         }), 400
+
+    if plataforma != PLATFORM_MERCADOLIVRE:
+        return jsonify({
+            "ok": False,
+            "erro": "No momento aceitamos apenas links do Mercado Livre."
+        }), 400
+
     app.logger.info("[MARKETPLACE DETECTADO] %s | url=%s", plataforma, url)
 
     usuario_id = session.get("user_id")

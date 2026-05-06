@@ -15,7 +15,7 @@ from config import (
 from repositories.jobs_repo import update_job_status
 from repositories.links_repo import create_link_gerado
 from services.afiliado_bot import LoginNecessarioError, FluxoGeracaoLinkError
-from services.platform_utils import SUPPORTED_PLATFORMS
+from services.platform_utils import ACTIVE_PLATFORMS, PLATFORM_SHOPEE
 
 
 job_queue = queue.Queue()
@@ -50,9 +50,11 @@ def process_job(job_data: dict):
         logger.info("[JOB %s] Iniciando processamento do job.", job_id)
         logger.info("[MARKETPLACE DETECTADO] %s", plataforma)
 
-        if plataforma not in SUPPORTED_PLATFORMS:
+        if plataforma not in ACTIVE_PLATFORMS:
+            if plataforma == PLATFORM_SHOPEE:
+                raise RuntimeError("Plataforma Shopee está desativada neste momento.")
             raise RuntimeError(f"Plataforma '{plataforma}' não suportada no worker local.")
-        logger.info("[WORKER] job %s enviado para bot %s.", job_id, "Shopee" if plataforma == "shopee" else "Mercado Livre")
+        logger.info("[WORKER] job %s enviado para bot Mercado Livre.", job_id)
 
         _update_job_status_com_log(
             job_id=job_id,

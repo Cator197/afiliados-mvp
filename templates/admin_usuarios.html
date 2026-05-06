@@ -47,7 +47,19 @@
                             <tr>
                                 <td>{{ usuario.codigo_usuario }}</td>
                                 <td>{{ usuario.nome }}</td>
-                                <td>{{ usuario.email or '-' }}</td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('admin_atualizar_usuario_email', user_id=usuario.id) }}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            value="{{ usuario.email or '' }}"
+                                            placeholder="Não cadastrado"
+                                            style="min-width:240px;"
+                                        >
+                                        <button type="submit">Salvar e-mail</button>
+                                    </form>
+                                </td>
                                 <td>
                                     <span class="badge {{ 'compra_confirmada' if usuario.ativo else 'erro' }}">
                                         {{ 'Ativo' if usuario.ativo else 'Inativo' }}

@@ -914,6 +914,8 @@ def admin_criar_usuario():
         erro = "Código do usuário é obrigatório."
     elif get_user_by_codigo_any_status(codigo_usuario):
         erro = "Código do usuário já existe."
+    elif email and not is_valid_email(email):
+        erro = "Informe um e-mail válido."
     elif len(senha) < MIN_USER_PASSWORD_LENGTH:
         erro = f"A senha deve ter no mínimo {MIN_USER_PASSWORD_LENGTH} caracteres."
 
@@ -1018,6 +1020,28 @@ def admin_atualizar_usuario(user_id):
     return redirect(
         url_for("admin_usuarios", sucesso=f"Senha do usuário {usuario['codigo_usuario']} atualizada. Ele deverá alterá-la no próximo acesso.")
     )
+
+
+@app.route("/admin/usuarios/<int:user_id>/email", methods=["POST"])
+@login_required_admin
+@csrf_protected
+def admin_atualizar_usuario_email(user_id):
+    if not admin_logado():
+        return redirect(url_for("admin_login"))
+
+    usuario = get_user_by_id(user_id)
+    if not usuario:
+        return redirect(url_for("admin_usuarios", erro="Usuário não encontrado."))
+
+    email_raw = request.form.get("email", "")
+    email_normalizado = (email_raw or "").strip().lower()
+    email_final = email_normalizado or None
+
+    if email_final and not is_valid_email(email_final):
+        return redirect(url_for("admin_usuarios", erro="Informe um e-mail válido."))
+
+    update_user_email(user_id=user_id, email=email_final)
+    return redirect(url_for("admin_usuarios", sucesso="E-mail atualizado com sucesso."))
 
 
 @app.route("/health", methods=["GET"])

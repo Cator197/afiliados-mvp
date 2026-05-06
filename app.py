@@ -185,10 +185,20 @@ def csrf_error_response():
 
 def validate_csrf_token():
     expected = session.get("csrf_token", "")
-    provided = (
-        request.form.get("csrf_token", "").strip()
-        or request.headers.get("X-CSRF-Token", "").strip()
+
+    header_candidates = (
+        "X-CSRF-Token",
+        "X-CSRFToken",
+        "X-Csrf-Token",
+        "X-CsrfToken",
     )
+    header_token = ""
+    for header_name in header_candidates:
+        header_token = request.headers.get(header_name, "").strip()
+        if header_token:
+            break
+
+    provided = request.form.get("csrf_token", "").strip() or header_token
     return bool(expected) and provided == expected
 
 

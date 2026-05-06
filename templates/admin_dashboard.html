@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="container" style="max-width: 1300px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div>
+            <h1>Dashboard admin</h1>
+            <p class="subtitle">Resumo das pendências operacionais · {{ admin_username }}</p>
+        </div>
+        <div class="actions">
+            <a class="btn" href="{{ url_for('admin_links') }}">Links</a>
+            <a class="btn" href="{{ url_for('admin_usuarios') }}">Usuários</a>
+            <a class="btn" href="{{ url_for('admin_solicitacoes') }}">Solicitações</a>
+            <a class="btn" href="{{ url_for('admin_reset_senhas') }}">Reset de senha</a>
+            <a class="btn" href="{{ url_for('admin_logout') }}">Sair</a>
+        </div>
+    </div>
+
+    {% if dashboard_error %}<div class="message-box alert alert-error">{{ dashboard_error }}</div>{% endif %}
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+        <div class="card"><h3>Aguardando verificação</h3><p><strong style="font-size:2rem;">{{ summary.aguardando_verificacao or 0 }}</strong></p><a class="btn" href="{{ url_for('admin_links', status='aguardando_verificacao') }}">Abrir</a></div>
+        <div class="card"><h3>Cashback para pagar</h3><p><strong style="font-size:2rem;">{{ summary.compra_confirmada or 0 }}</strong></p><a class="btn" href="{{ url_for('admin_links', status='compra_confirmada') }}">Abrir</a></div>
+        <div class="card"><h3>Usuários sem e-mail</h3><p><strong style="font-size:2rem;">{{ summary.usuarios_sem_email or 0 }}</strong></p><a class="btn" href="{{ url_for('admin_usuarios') }}">Abrir</a></div>
+        <div class="card"><h3>Cadastros pendentes</h3><p><strong style="font-size:2rem;">{{ summary.cadastros_pendentes or 0 }}</strong></p><a class="btn" href="{{ url_for('admin_solicitacoes') }}">Abrir</a></div>
+        <div class="card"><h3>Reset manual pendente</h3><p><strong style="font-size:2rem;">{{ summary.reset_pendente or 0 }}</strong></p><a class="btn" href="{{ url_for('admin_reset_senhas') }}">Abrir</a></div>
+        <div class="card"><h3>Saúde do robô</h3><p><strong>{{ robot_status }}</strong></p><a class="btn" href="{{ url_for('admin_links') }}">Ver health check</a></div>
+    </div>
+
+    <div class="card">
+        <h2>Prioridades de hoje</h2>
+        <h3>Links aguardando verificação</h3>
+        {% if pending_links %}<ul>{% for item in pending_links %}<li>{{ item.criado_em }} · {{ item.codigo_usuario }} · {{ item.descricao_item or 'Sem descrição' }} · R$ {{ '%.2f'|format(item.valor_produto) if item.valor_produto is not none else '-' }}</li>{% endfor %}</ul>{% else %}<p class="small">Nenhuma pendência nesta categoria.</p>{% endif %}
+        <a class="btn" href="{{ url_for('admin_links', status='aguardando_verificacao') }}">Abrir em links</a>
+
+        <h3 style="margin-top:20px;">Compras confirmadas aguardando pagamento</h3>
+        {% if confirmed_links %}<ul>{% for item in confirmed_links %}<li>{{ item.codigo_usuario }} · Cashback R$ {{ '%.2f'|format(item.valor_cashback) if item.valor_cashback is not none else '-' }} · {{ item.descricao_item or 'Sem descrição' }}</li>{% endfor %}</ul>{% else %}<p class="small">Nenhuma pendência nesta categoria.</p>{% endif %}
+        <a class="btn" href="{{ url_for('admin_links', status='compra_confirmada') }}">Abrir em links</a>
+
+        <h3 style="margin-top:20px;">Usuários sem e-mail</h3>
+        {% if users_without_email %}<ul>{% for user in users_without_email %}<li>{{ user.codigo_usuario }} · {{ user.nome }}</li>{% endfor %}</ul>{% else %}<p class="small">Nenhuma pendência nesta categoria.</p>{% endif %}
+        <a class="btn" href="{{ url_for('admin_usuarios') }}">Abrir em usuários</a>
+    </div>
+
+    {% if last_diagnostic or last_heartbeat %}
+    <div class="card">
+        <h2>Último diagnóstico do robô</h2>
+        {% if last_diagnostic %}<p>Status: <strong>{{ last_diagnostic.status }}</strong> · Etapa: {{ last_diagnostic.etapa }} · {{ last_diagnostic.criado_em }}</p><p class="small">{{ last_diagnostic.mensagem }}</p>{% else %}<p class="small">Sem diagnóstico recente.</p>{% endif %}
+        {% if last_heartbeat %}<p class="small">Último heartbeat: {{ last_heartbeat.last_heartbeat_em }} · Worker: {{ last_heartbeat.worker_id or '-' }} · Status: {{ last_heartbeat.last_status or '-' }}</p>{% endif %}
+    </div>
+    {% endif %}
+</div>
+</body>
+</html>

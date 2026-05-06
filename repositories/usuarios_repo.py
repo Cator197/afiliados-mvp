@@ -94,6 +94,61 @@ def list_users():
     return rows
 
 
+def list_users_admin(
+    q: str | None = None,
+    email_status: str | None = None,
+    status: str | None = None,
+    senha_status: str | None = None,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    sql = """
+        SELECT id, codigo_usuario, nome, email, ativo, criado_em, must_change_password
+        FROM usuarios
+    """
+    where_clauses = []
+    params = []
+
+    q_val = (q or "").strip()
+    if q_val:
+        like_term = f"%{q_val.lower()}%"
+        where_clauses.append(
+            """
+            (
+                LOWER(codigo_usuario) LIKE ?
+                OR LOWER(nome) LIKE ?
+                OR LOWER(COALESCE(email, '')) LIKE ?
+            )
+            """
+        )
+        params.extend([like_term, like_term, like_term])
+
+    if email_status == "sem_email":
+        where_clauses.append("(email IS NULL OR TRIM(email) = '')")
+    elif email_status == "com_email":
+        where_clauses.append("(email IS NOT NULL AND TRIM(email) <> '')")
+
+    if status == "ativo":
+        where_clauses.append("ativo = 1")
+    elif status == "inativo":
+        where_clauses.append("ativo = 0")
+
+    if senha_status == "troca_pendente":
+        where_clauses.append("must_change_password = 1")
+    elif senha_status == "senha_definida":
+        where_clauses.append("must_change_password = 0")
+
+    if where_clauses:
+        sql += " WHERE " + " AND ".join(where_clauses)
+
+    sql += " ORDER BY codigo_usuario ASC"
+    cursor.execute(sql, tuple(params))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
 def create_user(codigo_usuario: str, nome: str, password: str, criado_em: str, ativo: int = 1, must_change_password: int = 1, email: str | None = None) -> int:
     password_hash = hash_user_password(password)
     conn = get_connection()

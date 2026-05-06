@@ -49,6 +49,7 @@ from repositories.usuarios_repo import (
     get_user_by_id,
     get_user_by_codigo_or_email,
     list_users,
+    list_users_admin,
     update_user_active_status,
     update_user_email,
     update_user_password,
@@ -1050,10 +1051,49 @@ def admin_usuarios():
     if not admin_logado():
         return redirect(url_for("admin_login"))
 
+    q = (request.args.get("q", "") or "").strip()
+    email_status = (request.args.get("email_status", "todos") or "todos").strip().lower()
+    status = (request.args.get("status", "todos") or "todos").strip().lower()
+    senha_status = (request.args.get("senha_status", "todos") or "todos").strip().lower()
+
+    allowed_email_status = {"todos", "sem_email", "com_email"}
+    allowed_status = {"todos", "ativo", "inativo"}
+    allowed_senha_status = {"todos", "troca_pendente", "senha_definida"}
+
+    if email_status not in allowed_email_status:
+        email_status = "todos"
+    if status not in allowed_status:
+        status = "todos"
+    if senha_status not in allowed_senha_status:
+        senha_status = "todos"
+
+    usuarios = list_users_admin(
+        q=q or None,
+        email_status=email_status,
+        status=status,
+        senha_status=senha_status,
+    )
+
+    sem_email_count = sum(1 for u in usuarios if not (u["email"] or "").strip())
+    inativos_count = sum(1 for u in usuarios if not u["ativo"])
+    troca_pendente_count = sum(1 for u in usuarios if u["must_change_password"])
+
     return render_template(
         "admin_usuarios.html",
         admin_username=session.get("admin_username"),
-        usuarios=list_users(),
+        usuarios=usuarios,
+        filtros={
+            "q": q,
+            "email_status": email_status,
+            "status": status,
+            "senha_status": senha_status,
+        },
+        resumo={
+            "total": len(usuarios),
+            "sem_email": sem_email_count,
+            "inativos": inativos_count,
+            "troca_pendente": troca_pendente_count,
+        },
         erro=request.args.get("erro", "").strip() or None,
         sucesso=request.args.get("sucesso", "").strip() or None,
     )

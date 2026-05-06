@@ -22,6 +22,17 @@ def _safe_field(value, fallback="não informado"):
     return raw or fallback
 
 
+def _get_field(obj, field, default=""):
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(field, default)
+    try:
+        return obj[field]
+    except Exception:
+        return default
+
+
 def _missing_config_fields() -> list[str]:
     missing = []
     if not SMTP_HOST:
@@ -121,11 +132,11 @@ def notify_admin_new_signup_request(solicitacao):
         body_text = (
             "Olá,\n\n"
             "Uma nova solicitação de cadastro foi recebida no Minha Oferta.\n\n"
-            f"Nome: {_safe_field(solicitacao.get('nome_completo'))}\n"
-            f"E-mail: {_safe_field(solicitacao.get('email'))}\n"
-            f"Telefone/WhatsApp: {_safe_field(solicitacao.get('whatsapp'))}\n"
-            f"Código desejado: {_safe_field(solicitacao.get('codigo_indicacao'))}\n"
-            f"Data: {_safe_field(solicitacao.get('criado_em'))}\n\n"
+            f"Nome: {_safe_field(_get_field(solicitacao, 'nome_completo'))}\n"
+            f"E-mail: {_safe_field(_get_field(solicitacao, 'email'))}\n"
+            f"Telefone/WhatsApp: {_safe_field(_get_field(solicitacao, 'whatsapp'))}\n"
+            f"Código desejado: {_safe_field(_get_field(solicitacao, 'codigo_indicacao'))}\n"
+            f"Data: {_safe_field(_get_field(solicitacao, 'criado_em'))}\n\n"
             "Acesse o painel admin para analisar:\n"
             "https://minhaoferta.com/admin/solicitacoes"
         )
@@ -155,9 +166,9 @@ def notify_admin_password_reset_request(reset_request):
         body_text = (
             "Olá,\n\n"
             "Um usuário solicitou recuperação de senha.\n\n"
-            f"Código do usuário: {_safe_field(reset_request.get('codigo_usuario'))}\n"
-            f"E-mail informado: {_safe_field(reset_request.get('email'))}\n"
-            f"Data: {_safe_field(reset_request.get('criado_em'))}\n\n"
+            f"Código do usuário: {_safe_field(_get_field(reset_request, 'codigo_usuario'))}\n"
+            f"E-mail informado: {_safe_field(_get_field(reset_request, 'email'))}\n"
+            f"Data: {_safe_field(_get_field(reset_request, 'criado_em'))}\n\n"
             "Acesse o painel admin para analisar:\n"
             "https://minhaoferta.com/admin/reset-senhas\n\n"
             "Observação: este fluxo continua manual/admin neste PR."
@@ -185,17 +196,17 @@ def notify_admin_new_link_pending(link):
             return {"ok": False, "message": "E-mail do admin não configurado."}
 
         subject = "Novo link aguardando verificação - Minha Oferta"
-        descricao = _safe_field(link.get('descricao_item'), fallback='Descrição ainda não atualizada')
+        descricao = _safe_field(_get_field(link, 'descricao_item'), fallback='Descrição ainda não atualizada')
         body_text = (
             "Olá,\n\n"
             "Um novo link foi gerado e está aguardando verificação.\n\n"
-            f"Usuário: {_safe_field(link.get('usuario_nome'))}\n"
-            f"Código do usuário: {_safe_field(link.get('codigo_usuario'))}\n"
+            f"Usuário: {_safe_field(_get_field(link, 'usuario_nome'))}\n"
+            f"Código do usuário: {_safe_field(_get_field(link, 'codigo_usuario'))}\n"
             f"Descrição/produto: {descricao}\n"
-            f"URL original: {_safe_field(link.get('url_original'))}\n"
-            f"Link afiliado: {_safe_field(link.get('url_afiliado'))}\n"
-            f"Status: {_safe_field(link.get('status'))}\n"
-            f"Data: {_safe_field(link.get('criado_em'))}\n\n"
+            f"URL original: {_safe_field(_get_field(link, 'url_original'))}\n"
+            f"Link afiliado: {_safe_field(_get_field(link, 'url_afiliado'))}\n"
+            f"Status: {_safe_field(_get_field(link, 'status'))}\n"
+            f"Data: {_safe_field(_get_field(link, 'criado_em'))}\n\n"
             "Acesse o painel admin:\n"
             "https://minhaoferta.com/admin/links"
         )
@@ -211,13 +222,17 @@ def notify_admin_new_link_pending(link):
 
 
 def send_password_reset_email(user, reset_url: str):
-    email = ((user or {}).get("email") or "").strip()
+    email = (_get_field(user, "email") or "").strip()
     if not email:
         return {"ok": False, "message": "Usuário sem e-mail cadastrado."}
 
+    nome = (_get_field(user, "nome") or "").strip()
+    codigo = (_get_field(user, "codigo_usuario") or "").strip()
+    saudacao = nome or codigo or "usuário"
+
     subject = "Recuperação de senha - Minha Oferta"
     body_text = (
-        "Olá,\n\n"
+        f"Olá, {saudacao}\n\n"
         "Recebemos uma solicitação para redefinir sua senha no Minha Oferta.\n\n"
         "Clique no link abaixo para criar uma nova senha:\n"
         f"{reset_url}\n\n"
@@ -225,7 +240,7 @@ def send_password_reset_email(user, reset_url: str):
         "Se você não solicitou isso, ignore este e-mail."
     )
     body_html = (
-        "<p>Olá,</p>"
+        f"<p>Olá, {saudacao}</p>"
         "<p>Recebemos uma solicitação para redefinir sua senha no Minha Oferta.</p>"
         f"<p><a href=\"{reset_url}\">Clique no link para criar uma nova senha</a></p>"
         "<p>Este link expira em 60 minutos.<br>Se você não solicitou isso, ignore este e-mail.</p>"

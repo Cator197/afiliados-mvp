@@ -132,6 +132,17 @@ METADATA_CHROME_PROFILE_DIR = Path(
 ).expanduser()
 
 
+EMAIL_ENABLED = _env_bool("EMAIL_ENABLED", "false")
+SMTP_HOST = _env_str("SMTP_HOST")
+SMTP_PORT = int(_env_str("SMTP_PORT", "465"))
+SMTP_USER = _env_str("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = _env_str("SMTP_FROM_EMAIL")
+SMTP_FROM_NAME = _env_str("SMTP_FROM_NAME", "Minha Oferta")
+SMTP_USE_TLS = _env_bool("SMTP_USE_TLS", "false")
+SMTP_USE_SSL = _env_bool("SMTP_USE_SSL", "true")
+ADMIN_NOTIFICATION_EMAIL = _env_str("ADMIN_NOTIFICATION_EMAIL")
+
 def validate_security_config():
     missing = []
 

@@ -99,7 +99,14 @@ from services.platform_utils import (
     detect_platform_from_url,
 )
 
-from config import DATA_DIR, LOGS_DIR
+from config import (
+    DATA_DIR,
+    LOGS_DIR,
+    EMAIL_ENABLED,
+    SMTP_FROM_EMAIL,
+    ADMIN_NOTIFICATION_EMAIL,
+)
+from services.email_service import send_test_email
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -577,7 +584,12 @@ def admin_links():
             "codigo_usuario": codigo_usuario or "",
             "plataforma": plataforma or "",
             "descricao": descricao or "",
-        }
+        },
+        email_status={
+            "enabled": EMAIL_ENABLED,
+            "from_email": SMTP_FROM_EMAIL or "Não configurado",
+            "admin_email": ADMIN_NOTIFICATION_EMAIL or "Não configurado",
+        },
     )
 
 
@@ -1458,6 +1470,22 @@ def worker_job_error(job_id):
 
     return jsonify({"ok": True, "job_id": job_id, "status": JOB_STATUS_ERRO})
 
+
+
+
+@app.route("/api/admin/email/test", methods=["POST"])
+@login_required_admin
+@csrf_protected
+def admin_email_test():
+    if not admin_logado():
+        return jsonify({"ok": False, "message": "Admin não autenticado."}), 401
+
+    result = send_test_email()
+    status_code = 200 if result.get("ok") else 400
+    return jsonify({
+        "ok": bool(result.get("ok")),
+        "message": result.get("message", "Falha ao enviar e-mail de teste."),
+    }), status_code
 
 @app.route("/api/admin/worker-healthcheck/run", methods=["POST"])
 @login_required_admin

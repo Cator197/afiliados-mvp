@@ -106,7 +106,12 @@ from config import (
     SMTP_FROM_EMAIL,
     ADMIN_NOTIFICATION_EMAIL,
 )
-from services.email_service import send_test_email
+from services.email_service import (
+    send_test_email,
+    notify_admin_new_signup_request,
+    notify_admin_password_reset_request,
+    notify_admin_new_link_pending,
+)
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -1164,6 +1169,7 @@ def solicitar_cadastro_publico():
     if is_signup_rate_limited(email=email, now=datetime.now()):
         return jsonify({"ok": False, "erro": "Tente novamente mais tarde"}), 429
 
+    criado_em = now_str()
     try:
         solicitacao_id = create_cadastro_solicitacao(
             nome_completo=nome_completo,
@@ -1171,9 +1177,17 @@ def solicitar_cadastro_publico():
             codigo_indicacao=codigo_indicacao,
             whatsapp=None,
             status="novo",
-            criado_em=now_str(),
-            atualizado_em=now_str(),
+            criado_em=criado_em,
+            atualizado_em=criado_em,
         )
+        notify_admin_new_signup_request({
+            "id": solicitacao_id,
+            "nome_completo": nome_completo,
+            "email": email,
+            "codigo_indicacao": codigo_indicacao,
+            "whatsapp": None,
+            "criado_em": criado_em,
+        })
     except Exception:
         app.logger.exception("Falha ao criar solicitação de cadastro.")
         return jsonify({"ok": False, "erro": "Não foi possível registrar sua solicitação agora. Tente novamente."}), 500
@@ -1207,11 +1221,18 @@ def solicitar_reset_senha_publico():
     if solicitacao_existente:
         return jsonify({"ok": False, "erro": "Já existe uma solicitação de redefinição em andamento para esse usuário."}), 409
 
+    criado_em = now_str()
     request_id = create_password_reset_request(
         codigo_usuario=codigo_usuario,
-        criado_em=now_str(),
-        atualizado_em=now_str(),
+        criado_em=criado_em,
+        atualizado_em=criado_em,
     )
+    notify_admin_password_reset_request({
+        "id": request_id,
+        "codigo_usuario": codigo_usuario,
+        "email": (usuario["email"] if usuario and "email" in usuario.keys() else None),
+        "criado_em": criado_em,
+    })
 
     return jsonify({
         "ok": True,
@@ -1419,6 +1440,7 @@ def worker_job_success(job_id):
     )
     app.logger.info("[JOB %s] Success recebido do worker remoto.", job_id)
 
+    criado_em = now_str()
     create_link_gerado(
         usuario_id=job["usuario_id"],
         job_id=job_id,
@@ -1427,10 +1449,21 @@ def worker_job_success(job_id):
         url_afiliado=url_afiliado,
         status=LINK_STATUS_AGUARDANDO_VERIFICACAO,
         percentual_cashback=CASHBACK_PERCENTUAL_PADRAO,
-        criado_em=now_str(),
-        atualizado_em=now_str(),
+        criado_em=criado_em,
+        atualizado_em=criado_em,
     )
     app.logger.info("[JOB %s] Link afiliado persistido e job concluído.", job_id)
+
+    usuario = get_user_by_id(job["usuario_id"])
+    notify_admin_new_link_pending({
+        "usuario_nome": (usuario["nome"] if usuario and "nome" in usuario.keys() else None),
+        "codigo_usuario": (usuario["codigo_usuario"] if usuario and "codigo_usuario" in usuario.keys() else None),
+        "descricao_item": None,
+        "url_original": job["url_original"],
+        "url_afiliado": url_afiliado,
+        "status": LINK_STATUS_AGUARDANDO_VERIFICACAO,
+        "criado_em": criado_em,
+    })
 
     return jsonify({"ok": True, "job_id": job_id, "status": JOB_STATUS_CONCLUIDO})
 

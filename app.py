@@ -65,6 +65,12 @@ from repositories.links_repo import (
 )
 from repositories.admin_repo import validate_admin_login
 from repositories.worker_status_repo import upsert_worker_heartbeat, get_worker_status
+from repositories.worker_diagnostics_repo import (
+    create_diagnostic,
+    update_diagnostic,
+    get_last_diagnostics,
+    claim_pending_diagnostic,
+)
 from repositories.cadastro_solicitacoes_repo import (
     create_cadastro_solicitacao,
     get_cadastro_solicitacao_by_id,
@@ -84,7 +90,7 @@ from repositories.password_reset_requests_repo import (
     list_password_reset_requests,
     update_password_reset_request,
 )
-from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table
+from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table, ensure_worker_diagnostics_table
 from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns
 from services.platform_utils import (
     PLATFORM_MERCADOLIVRE,
@@ -136,6 +142,7 @@ ensure_jobs_platform_column()
 ensure_links_platform_column()
 ensure_links_metadata_columns()
 ensure_worker_heartbeats_table()
+ensure_worker_diagnostics_table()
 ensure_cadastro_solicitacoes_table()
 ensure_password_reset_requests_table()
 
@@ -1439,6 +1446,104 @@ def worker_job_error(job_id):
     app.logger.info("[JOB %s] Error recebido do worker remoto: %s", job_id, mensagem_erro)
 
     return jsonify({"ok": True, "job_id": job_id, "status": JOB_STATUS_ERRO})
+
+
+@app.route("/api/admin/worker-healthcheck/run", methods=["POST"])
+@login_required_admin
+@csrf_protected
+def admin_run_worker_healthcheck():
+    worker_id = request.json.get("worker_id", "").strip() if request.is_json else ""
+    diagnostic_id = create_diagnostic(
+        worker_id=worker_id or None,
+        status="executando",
+        etapa="solicitado",
+        mensagem="Health check solicitado pelo admin.",
+        criado_em=now_str(),
+    )
+    app.logger.info("[HEALTHCHECK] solicitado | diagnostic_id=%s | worker_id=%s", diagnostic_id, worker_id or "*")
+    return jsonify({"ok": True, "diagnostic_id": diagnostic_id})
+
+
+@app.route("/api/admin/worker-healthcheck/logs", methods=["GET"])
+@login_required_admin
+def admin_worker_healthcheck_logs():
+    rows = get_last_diagnostics(limit=20)
+    return jsonify({
+        "ok": True,
+        "logs": [
+            {
+                "id": row["id"],
+                "worker_id": row["worker_id"],
+                "status": row["status"],
+                "etapa": row["etapa"],
+                "mensagem": row["mensagem"],
+                "detalhes": row["detalhes"],
+                "iniciou_em": row["iniciou_em"],
+                "finalizou_em": row["finalizou_em"],
+                "duracao_ms": row["duracao_ms"],
+                "criado_em": row["criado_em"],
+            } for row in rows
+        ]
+    })
+
+
+@app.route("/api/worker/healthcheck/claim", methods=["POST"])
+def worker_claim_healthcheck():
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+    worker_id = get_request_worker_id(request.get_json(silent=True) or {})
+    if not worker_id:
+        return jsonify({"ok": False, "erro": "worker_id não informado."}), 400
+    diag = claim_pending_diagnostic(worker_id=worker_id, claimed_em=now_str())
+    return jsonify({
+        "ok": True,
+        "diagnostic": None if not diag else {
+            "id": diag["id"],
+            "worker_id": diag["worker_id"],
+            "status": diag["status"],
+            "etapa": diag["etapa"],
+            "mensagem": diag["mensagem"],
+            "iniciou_em": diag["iniciou_em"],
+            "criado_em": diag["criado_em"],
+        }
+    })
+
+
+@app.route("/api/worker/healthcheck/<int:diagnostic_id>/success", methods=["POST"])
+def worker_healthcheck_success(diagnostic_id):
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    update_diagnostic(
+        diagnostic_id,
+        status="ok",
+        etapa=data.get("etapa", "finalizado"),
+        mensagem=(data.get("mensagem") or "Health check concluído com sucesso.")[:500],
+        detalhes=(data.get("detalhes") or "")[:1000] or None,
+        finalizou_em=now_str(),
+        duracao_ms=data.get("duracao_ms"),
+    )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/worker/healthcheck/<int:diagnostic_id>/error", methods=["POST"])
+def worker_healthcheck_error(diagnostic_id):
+    auth_error = validate_worker_request()
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    update_diagnostic(
+        diagnostic_id,
+        status="erro",
+        etapa=data.get("etapa", "finalizado"),
+        mensagem=(data.get("mensagem") or "Health check concluído com erro.")[:500],
+        detalhes=(data.get("detalhes") or "")[:1000] or None,
+        finalizou_em=now_str(),
+        duracao_ms=data.get("duracao_ms"),
+    )
+    return jsonify({"ok": True})
 
 
 @app.route("/api/worker/metadata/claim", methods=["POST"])

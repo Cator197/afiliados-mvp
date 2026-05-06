@@ -67,12 +67,12 @@ class AdminUsuariosTests(unittest.TestCase):
 
         cursor.executemany(
             """
-            INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em, must_change_password)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO usuarios (codigo_usuario, nome, email, password_hash, ativo, criado_em, must_change_password)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                ("USR001", "Usuário 1", hash_user_password("senha123"), 1, "2026-01-01 00:00:00", 0),
-                ("USR002", "Usuário 2", hash_user_password("senha123"), 0, "2026-01-01 00:00:00", 0),
+                ("USR001", "Caio Silva", "caio@example.com", hash_user_password("senha123"), 1, "2026-01-01 00:00:00", 0),
+                ("USR002", "Usuário 2", None, hash_user_password("senha123"), 0, "2026-01-01 00:00:00", 1),
             ],
         )
 
@@ -178,6 +178,30 @@ class AdminUsuariosTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("/admin/login?erro=csrf", response.headers.get("Location", ""))
+
+    def test_filtros_e_busca_admin_usuarios(self):
+        self._login_admin()
+
+        response = self.client.get("/admin/usuarios?q=caio")
+        body = response.get_data(as_text=True)
+        self.assertIn("USR001", body)
+        self.assertNotIn("USR002", body)
+
+        response = self.client.get("/admin/usuarios?email_status=sem_email")
+        body = response.get_data(as_text=True)
+        self.assertIn("USR002", body)
+        self.assertNotIn("USR001", body)
+        self.assertIn("Necessário para recuperação automática de senha", body)
+
+        response = self.client.get("/admin/usuarios?status=inativo")
+        body = response.get_data(as_text=True)
+        self.assertIn("USR002", body)
+        self.assertNotIn("USR001", body)
+
+        response = self.client.get("/admin/usuarios?senha_status=troca_pendente")
+        body = response.get_data(as_text=True)
+        self.assertIn("USR002", body)
+        self.assertNotIn("USR001", body)
 
 
 if __name__ == "__main__":

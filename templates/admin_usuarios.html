@@ -30,6 +30,48 @@
             <div class="message-box" style="background:#e6f7ea;border-color:#b6e3c1;">{{ sucesso }}</div>
         {% endif %}
 
+        <form method="GET" action="{{ url_for('admin_usuarios') }}" class="users-filter-form">
+            <div>
+                <label for="q">Buscar usuário</label>
+                <input id="q" type="text" name="q" value="{{ filtros.q }}" placeholder="Código, nome ou e-mail">
+            </div>
+            <div>
+                <label for="email_status">E-mail</label>
+                <select id="email_status" name="email_status">
+                    <option value="todos" {{ 'selected' if filtros.email_status == 'todos' else '' }}>Todos</option>
+                    <option value="sem_email" {{ 'selected' if filtros.email_status == 'sem_email' else '' }}>Sem e-mail</option>
+                    <option value="com_email" {{ 'selected' if filtros.email_status == 'com_email' else '' }}>Com e-mail</option>
+                </select>
+            </div>
+            <div>
+                <label for="status">Status</label>
+                <select id="status" name="status">
+                    <option value="todos" {{ 'selected' if filtros.status == 'todos' else '' }}>Todos</option>
+                    <option value="ativo" {{ 'selected' if filtros.status == 'ativo' else '' }}>Ativos</option>
+                    <option value="inativo" {{ 'selected' if filtros.status == 'inativo' else '' }}>Inativos</option>
+                </select>
+            </div>
+            <div>
+                <label for="senha_status">Senha</label>
+                <select id="senha_status" name="senha_status">
+                    <option value="todos" {{ 'selected' if filtros.senha_status == 'todos' else '' }}>Todos</option>
+                    <option value="troca_pendente" {{ 'selected' if filtros.senha_status == 'troca_pendente' else '' }}>Troca obrigatória pendente</option>
+                    <option value="senha_definida" {{ 'selected' if filtros.senha_status == 'senha_definida' else '' }}>Já definiu a própria senha</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit">Filtrar</button>
+                <a class="btn" href="{{ url_for('admin_usuarios') }}">Limpar filtros</a>
+            </div>
+        </form>
+
+        <div class="users-summary-grid">
+            <div class="summary-card"><span>Total listados</span><strong>{{ resumo.total }}</strong></div>
+            <div class="summary-card"><span>Sem e-mail</span><strong>{{ resumo.sem_email }}</strong></div>
+            <div class="summary-card"><span>Inativos</span><strong>{{ resumo.inativos }}</strong></div>
+            <div class="summary-card"><span>Troca obrigatória pendente</span><strong>{{ resumo.troca_pendente }}</strong></div>
+        </div>
+
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -59,6 +101,12 @@
                                             style="min-width:240px;"
                                         >
                                         <button type="submit">Salvar e-mail</button>
+                                        {% if not usuario.email or not usuario.email.strip() %}
+                                            <div class="email-warning">
+                                                <span class="badge status-warning">Sem e-mail</span>
+                                                <small>Necessário para recuperação automática de senha</small>
+                                            </div>
+                                        {% endif %}
                                     </form>
                                 </td>
                                 <td>

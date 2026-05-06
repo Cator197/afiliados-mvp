@@ -37,6 +37,30 @@
             </div>
         </section>
 
+        <section class="history-controls" aria-label="Filtros do histórico">
+            <div class="input-group history-search-group no-margin">
+                <label for="historicoBusca">Buscar no histórico</label>
+                <input id="historicoBusca" type="text" placeholder="Buscar por produto ou link">
+            </div>
+            <div class="history-tabs" id="historyTabs" role="tablist" aria-label="Filtrar por status">
+                <button type="button" class="history-tab is-active" data-filter="todos">Todos</button>
+                <button type="button" class="history-tab" data-filter="aguardando_verificacao">Aguardando confirmação</button>
+                <button type="button" class="history-tab" data-filter="compra_confirmada">Compra confirmada</button>
+                <button type="button" class="history-tab" data-filter="cashback_pago">Cashback pago</button>
+                <button type="button" class="history-tab" data-filter="compra_nao_confirmada">Não confirmado</button>
+            </div>
+            <p class="small history-filter-summary" id="historyFilterSummary">Exibindo 0 de 0 links.</p>
+            <details class="status-legend">
+                <summary>Entenda os status</summary>
+                <ul>
+                    <li><strong>Aguardando confirmação:</strong> compra ainda não foi validada.</li>
+                    <li><strong>Compra confirmada:</strong> cashback em preparação.</li>
+                    <li><strong>Cashback pago:</strong> pagamento concluído.</li>
+                    <li><strong>Não confirmado:</strong> compra não foi identificada para este link.</li>
+                </ul>
+            </details>
+        </section>
+
         <section id="historicoLista" class="history-list" aria-live="polite"></section>
     </div>
 
@@ -56,7 +80,13 @@
         const summaryQuantidadePerdido = document.getElementById("summaryQuantidadePerdido");
         const summaryValorPendente = document.getElementById("summaryValorPendente");
         const summaryValorPago = document.getElementById("summaryValorPago");
+        const historicoBusca = document.getElementById("historicoBusca");
+        const historyTabs = document.getElementById("historyTabs");
+        const historyFilterSummary = document.getElementById("historyFilterSummary");
         const PLACEHOLDER_IMAGE = "{{ url_for('static', filename='img/product-placeholder.svg') }}";
+        const STATUS_FILTROS = new Set(["aguardando_verificacao", "compra_confirmada", "cashback_pago", "compra_nao_confirmada"]);
+        let allLinks = [];
+        let activeFilter = "todos";
 
         function mostrarMensagem(texto, tipo = "info") {
             mensagem.className = `message-box alert alert-${tipo}`;
@@ -81,7 +111,7 @@
 
         function valorMoedaOuTraco(valor) {
             if (valor === null || valor === undefined || valor === "") {
-                return "-";
+                return "Aguardando cálculo";
             }
             return formatarMoeda(valor);
         }
@@ -110,10 +140,16 @@
 
         function cardLinkAfiliado(url) {
             if (!url) {
-                return "-";
+                return "Link ainda não disponível";
             }
             const sanitizedUrl = escapeHtml(url);
             return `<a href="${sanitizedUrl}" target="_blank" class="table-link">${sanitizedUrl}</a>`;
+        }
+
+        function abrirLinkHtml(url) {
+            if (!url) return "";
+            const sanitizedUrl = escapeHtml(url);
+            return `<a class="btn btn-secondary history-card-action" target="_blank" rel="noopener noreferrer" href="${sanitizedUrl}">Abrir link</a>`;
         }
 
         function badgeHtml(link) {
@@ -123,29 +159,84 @@
         }
 
         function renderHistorico(links) {
-            historicoLista.innerHTML = links.map(link => {
-                const descricao = (link.descricao_item || "").trim() || "Produto em processamento";
-                const fotoUrl = (link.foto_item_url || "").trim() || PLACEHOLDER_IMAGE;
-                const cashbackClass = Number(link.valor_cashback || 0) > 0 ? "cashback-highlight" : "";
-
-                return `
-                    <article class="history-card">
-                        <img
-                            class="history-card-image"
-                            src="${escapeHtml(fotoUrl)}"
-                            alt="Imagem do produto"
-                            loading="lazy"
-                            onerror="this.onerror=null;this.src='${PLACEHOLDER_IMAGE}';"
-                        >
-                        <p class="history-card-desc">${escapeHtml(descricao)}</p>
-                        <p><strong>Status:</strong> ${badgeHtml(link)}</p>
-                        ${link.status_description ? `<p class="small">${escapeHtml(link.status_description)}</p>` : ""}
-                        <p><strong>Valor do cashback:</strong> <span class="${cashbackClass}">${valorMoedaOuTraco(link.valor_cashback)}</span></p>
-                        <p><strong>Link afiliado:</strong> ${cardLinkAfiliado(link.url_afiliado)}</p>
-                        <p><strong>Data:</strong> ${formatarData(link.criado_em)}</p>
-                    </article>
+            if (!links.length) {
+                historicoLista.innerHTML = `
+                    <div class="empty-state">
+                        <strong>Nenhum resultado encontrado</strong>
+                        <p>Tente limpar os filtros ou buscar por outro produto.</p>
+                        <button type="button" id="btnLimparFiltros">Limpar filtros</button>
+                    </div>
                 `;
+                const btnLimpar = document.getElementById("btnLimparFiltros");
+                if (btnLimpar) btnLimpar.addEventListener("click", limparFiltros);
+                return;
+            }
+
+            historicoLista.innerHTML = links.map(link => {
+                try {
+                    const descricao = (link.descricao_item || "").trim() || "Produto ainda não identificado";
+                    const fotoUrl = (link.foto_item_url || "").trim() || PLACEHOLDER_IMAGE;
+                    const cashbackClass = Number(link.valor_cashback || 0) > 0 ? "cashback-highlight" : "";
+
+                    return `
+                        <article class="history-card">
+                            <img
+                                class="history-card-image"
+                                src="${escapeHtml(fotoUrl)}"
+                                alt="Imagem do produto"
+                                loading="lazy"
+                                onerror="this.onerror=null;this.src='${PLACEHOLDER_IMAGE}';"
+                            >
+                            <p class="history-card-desc">${escapeHtml(descricao)}</p>
+                            <p><strong>Status:</strong> ${badgeHtml(link)}</p>
+                            ${link.status_description ? `<p class="small">${escapeHtml(link.status_description)}</p>` : ""}
+                            <p><strong>Valor do cashback:</strong> <span class="${cashbackClass}">${valorMoedaOuTraco(link.valor_cashback)}</span></p>
+                            <p><strong>Link afiliado:</strong> ${cardLinkAfiliado(link.url_afiliado)}</p>
+                            <p><strong>Data:</strong> ${formatarData(link.criado_em)}</p>
+                            <div class="actions no-margin history-card-actions">
+                                ${abrirLinkHtml(link.url_afiliado)}
+                            </div>
+                        </article>
+                    `;
+                } catch (error) {
+                    console.error("[historico] erro ao renderizar card", error, link);
+                    return `<article class="history-card"><p class="history-card-desc">Produto ainda não identificado</p><p><strong>Status:</strong> Status não identificado</p><p><strong>Valor do cashback:</strong> Aguardando cálculo</p></article>`;
+                }
             }).join("");
+        }
+
+        function statusCompativel(linkStatus, filtroStatus) {
+            if (filtroStatus === "todos") return true;
+            return (linkStatus || "").trim() === filtroStatus;
+        }
+
+        function filtrarLinks() {
+            const termo = (historicoBusca.value || "").trim().toLowerCase();
+            const filtrados = allLinks.filter(link => {
+                const status = (link.status || "").trim();
+                if (!statusCompativel(status, activeFilter)) return false;
+
+                if (!termo) return true;
+                const textoBusca = [
+                    link.descricao_item,
+                    link.url_original,
+                    link.url_afiliado,
+                    link.status_label
+                ].map(v => String(v || "").toLowerCase()).join(" ");
+                return textoBusca.includes(termo);
+            });
+
+            historyFilterSummary.textContent = `Exibindo ${filtrados.length} de ${allLinks.length} links.`;
+            renderHistorico(filtrados);
+        }
+
+        function limparFiltros() {
+            activeFilter = "todos";
+            historicoBusca.value = "";
+            historyTabs.querySelectorAll(".history-tab").forEach(btn => {
+                btn.classList.toggle("is-active", btn.dataset.filter === "todos");
+            });
+            filtrarLinks();
         }
 
         async function carregarHistorico() {
@@ -184,19 +275,23 @@
                 const links = Array.isArray(data.links) ? data.links : [];
 
                 if (!links.length) {
-                    mostrarMensagem("Você ainda não gerou links. Próximo passo: volte para a tela anterior e gere seu primeiro link.", "warning");
+                    mostrarMensagem("Você ainda não gerou nenhum link.", "warning");
                     historicoLista.innerHTML = `
                         <div class="empty-state">
-                            <strong>Histórico vazio.</strong>
-                            <p>Nenhum link foi gerado até agora.</p>
-                            <p>Próximo passo: clique em <em>Gerar novo link</em> para começar.</p>
+                            <strong>Você ainda não gerou nenhum link</strong>
+                            <p>Cole um link do Mercado Livre para gerar seu link com cashback.</p>
+                            <a class="btn" href="{{ url_for('pagina_usuario', codigo_usuario=usuario.codigo_usuario) }}">Gerar meu primeiro link</a>
                         </div>
                     `;
                     return;
                 }
 
                 mostrarMensagem(`Histórico atualizado com ${links.length} registro(s).`, "success");
-                renderHistorico(links);
+                allLinks = links.map((link) => {
+                    const fallbackStatus = STATUS_FILTROS.has(link.status) ? link.status : "";
+                    return { ...link, status: fallbackStatus || link.status };
+                });
+                filtrarLinks();
             } catch (e) {
                 console.error("[historico] erro inesperado", e);
                 mostrarMensagem("Erro de comunicação com o servidor.", "error");
@@ -205,6 +300,18 @@
         }
 
         carregarHistorico();
+
+        historyTabs.addEventListener("click", (event) => {
+            const btn = event.target.closest(".history-tab");
+            if (!btn) return;
+            activeFilter = btn.dataset.filter || "todos";
+            historyTabs.querySelectorAll(".history-tab").forEach(tab => {
+                tab.classList.toggle("is-active", tab === btn);
+            });
+            filtrarLinks();
+        });
+
+        historicoBusca.addEventListener("input", filtrarLinks);
     </script>
 </body>
 </html>

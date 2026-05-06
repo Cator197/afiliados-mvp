@@ -98,6 +98,16 @@ from repositories.password_reset_requests_repo import (
     mark_reset_token_used,
     invalidate_active_tokens_for_user,
 )
+from repositories.admin_dashboard_repo import (
+    count_links_by_status,
+    get_recent_links_by_status,
+    count_users_without_email,
+    get_users_without_email,
+    count_pending_signup_requests,
+    count_pending_password_reset_requests,
+    get_last_worker_diagnostic,
+    get_last_worker_heartbeat,
+)
 from repositories.password_reset_attempts_repo import (
     count_recent_attempts_by_identifier,
     count_recent_attempts_by_ip,
@@ -577,6 +587,57 @@ def admin_logout():
     session.pop("admin_logged_in", None)
     session.pop("admin_username", None)
     return redirect(url_for("admin_login"))
+
+
+@app.route("/admin/dashboard", methods=["GET"])
+@login_required_admin
+def admin_dashboard():
+    if not admin_logado():
+        return redirect(url_for("admin_login"))
+
+    dashboard_error = None
+    summary = {}
+    pending_links = []
+    confirmed_links = []
+    users_without_email = []
+    last_diagnostic = None
+    last_heartbeat = None
+
+    try:
+        summary = {
+            "aguardando_verificacao": count_links_by_status("aguardando_verificacao"),
+            "compra_confirmada": count_links_by_status("compra_confirmada"),
+            "usuarios_sem_email": count_users_without_email(),
+            "cadastros_pendentes": count_pending_signup_requests(),
+            "reset_pendente": count_pending_password_reset_requests(),
+        }
+        pending_links = get_recent_links_by_status("aguardando_verificacao", limit=5)
+        confirmed_links = get_recent_links_by_status("compra_confirmada", limit=5)
+        users_without_email = get_users_without_email(limit=5)
+        last_diagnostic = get_last_worker_diagnostic()
+        last_heartbeat = get_last_worker_heartbeat()
+    except Exception:
+        app.logger.exception("[ADMIN DASHBOARD] Falha ao montar dados de resumo")
+        dashboard_error = "Não foi possível carregar todos os dados do dashboard agora."
+
+    robot_status = "Sem diagnóstico recente"
+    if last_diagnostic and last_diagnostic["status"] == "ok":
+        robot_status = "Robô funcionando"
+    elif last_diagnostic:
+        robot_status = "Atenção necessária"
+
+    return render_template(
+        "admin_dashboard.html",
+        admin_username=session.get("admin_username"),
+        dashboard_error=dashboard_error,
+        summary=summary,
+        pending_links=pending_links,
+        confirmed_links=confirmed_links,
+        users_without_email=users_without_email,
+        robot_status=robot_status,
+        last_diagnostic=last_diagnostic,
+        last_heartbeat=last_heartbeat,
+    )
 
 
 @app.route("/admin/links", methods=["GET"])

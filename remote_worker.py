@@ -5,7 +5,7 @@ from datetime import datetime
 
 import requests
 
-from bot_manager import get_bot, get_bot_status, set_bot_status
+from bot_manager import get_bot, get_bot_status, get_existing_bot_or_none, get_existing_driver_status, set_bot_status
 from config import (
     BOT_STATUS_AGUARDANDO_LOGIN,
     BOT_STATUS_ONLINE,
@@ -266,19 +266,62 @@ def run() -> None:
 
             diagnostic = claim_healthcheck()
             if diagnostic:
-                logger.info("[HEALTHCHECK %s] iniciado pelo worker=%s", diagnostic["id"], WORKER_ID)
-                started_at = time.monotonic()
-                bot = get_bot(plataforma=PLATFORM_MERCADOLIVRE)
-                result = bot.healthcheck()
-                duration_ms = int((time.monotonic() - started_at) * 1000)
-                payload = {
-                    "etapa": result.get("etapa"),
-                    "mensagem": result.get("mensagem"),
-                    "detalhes": result.get("detalhes"),
-                    "duracao_ms": duration_ms,
-                }
-                report_healthcheck_result(diagnostic["id"], bool(result.get("ok")), payload)
-                logger.info("[HEALTHCHECK %s] finalizado status=%s", diagnostic["id"], "ok" if result.get("ok") else "erro")
+                try:
+                    logger.info("[HEALTHCHECK %s] iniciado pelo worker=%s", diagnostic["id"], WORKER_ID)
+                    started_at = time.monotonic()
+                    driver_status = get_existing_driver_status(plataforma=PLATFORM_MERCADOLIVRE)
+                    bot = get_existing_bot_or_none(plataforma=PLATFORM_MERCADOLIVRE)
+
+                    if bot is None:
+                        result = {
+                            "ok": False,
+                            "etapa": "driver_ausente",
+                            "mensagem": "Worker está vivo, mas não há navegador Selenium ativo para testar.",
+                            "detalhes": f"worker_id={WORKER_ID} plataforma={PLATFORM_MERCADOLIVRE}",
+                            "bot_status": "ausente",
+                            "driver_status": "ausente" if not driver_status.get("driver_existe") else "quebrado",
+                            "selenium_status": "nao_responsivo",
+                            "ml_session": "indefinida",
+                        }
+                    else:
+                        result = bot.healthcheck_passivo()
+                        result["bot_status"] = "existente"
+                        if not driver_status.get("driver_existe"):
+                            result["driver_status"] = "ausente"
+                        elif driver_status.get("driver_responsivo"):
+                            result["driver_status"] = "existente"
+                        else:
+                            result["driver_status"] = "quebrado"
+
+                    duration_ms = int((time.monotonic() - started_at) * 1000)
+                    payload = {
+                        "worker_vivo": True,
+                        "plataforma": PLATFORM_MERCADOLIVRE,
+                        "bot_status": result.get("bot_status", "existente" if bot else "ausente"),
+                        "driver_status": result.get("driver_status", "existente"),
+                        "selenium_status": result.get("selenium_status", "responsivo"),
+                        "ml_session": result.get("ml_session", "indefinida"),
+                        "etapa": result.get("etapa"),
+                        "mensagem": result.get("mensagem"),
+                        "detalhes": result.get("detalhes"),
+                        "duracao_ms": duration_ms,
+                    }
+                    report_healthcheck_result(diagnostic["id"], bool(result.get("ok")), payload)
+                    logger.info("[HEALTHCHECK %s] finalizado status=%s", diagnostic["id"], "ok" if result.get("ok") else "erro")
+                except Exception as exc:
+                    logger.exception("[HEALTHCHECK %s] erro inesperado durante execução passiva.", diagnostic["id"])
+                    payload = {
+                        "worker_vivo": True,
+                        "plataforma": PLATFORM_MERCADOLIVRE,
+                        "bot_status": "indefinido",
+                        "driver_status": "quebrado",
+                        "selenium_status": "nao_responsivo",
+                        "ml_session": "indefinida",
+                        "etapa": "healthcheck_exception",
+                        "mensagem": "Erro inesperado no health check passivo do worker.",
+                        "detalhes": str(exc)[:500],
+                    }
+                    report_healthcheck_result(diagnostic["id"], False, payload)
                 time.sleep(1)
                 continue
 

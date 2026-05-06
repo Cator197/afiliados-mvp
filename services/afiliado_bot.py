@@ -315,15 +315,44 @@ class AfiliadoBot:
             logger.exception("[BOT FLOW] Falha na etapa '%s' da geração de link.", etapa)
             raise
 
-    def healthcheck(self) -> dict:
+    def healthcheck_passivo(self) -> dict:
+        if self.driver is None:
+            return {
+                "ok": False,
+                "etapa": "driver_ausente",
+                "mensagem": "Nenhum navegador ativo controlado pelo Selenium foi encontrado.",
+                "detalhes": "Instância do bot sem driver ativo.",
+                "selenium_status": "nao_responsivo",
+                "ml_session": "indefinida",
+            }
+
+        try:
+            _ = self.driver.current_url
+            _ = self.driver.title
+            script_result = self.driver.execute_script("return 1")
+            if script_result != 1:
+                raise RuntimeError("Teste de script do Selenium retornou valor inesperado.")
+        except Exception as exc:
+            return {
+                "ok": False,
+                "etapa": "selenium_nao_responsivo",
+                "mensagem": "Selenium não respondeu ao teste passivo do navegador atual.",
+                "detalhes": str(exc)[:500],
+                "selenium_status": "nao_responsivo",
+                "ml_session": "indefinida",
+            }
+
         try:
             self.driver.get(LINK_BUILDER_URL)
+
             if self._esta_em_tela_login():
                 return {
                     "ok": False,
-                    "etapa": "mercadolivre_session",
-                    "mensagem": "Sessão do Mercado Livre inválida (login necessário).",
+                    "etapa": "login_necessario",
+                    "mensagem": "Worker está vivo e Selenium responde, mas a sessão do Mercado Livre precisa de login manual.",
                     "detalhes": (self.driver.current_url or "")[:500],
+                    "selenium_status": "responsivo",
+                    "ml_session": "login_necessario",
                 }
 
             self._wait_first_element(
@@ -331,24 +360,34 @@ class AfiliadoBot:
                 etapa="mercadolivre_linkbuilder",
                 timeout_message="Campo de URL não encontrado no linkbuilder do Mercado Livre.",
             )
+
             return {
                 "ok": True,
                 "etapa": "finalizado",
-                "mensagem": "Health check concluído com sucesso.",
+                "mensagem": "Worker, Selenium e sessão Mercado Livre funcionando.",
                 "detalhes": "Portal carregado e campo de URL detectado.",
+                "selenium_status": "responsivo",
+                "ml_session": "valida",
             }
         except FluxoGeracaoLinkError as exc:
             return {
                 "ok": False,
                 "etapa": exc.etapa,
                 "mensagem": str(exc),
-                "detalhes": "Falha controlada no fluxo de health check.",
+                "detalhes": "Falha controlada no fluxo de health check do Mercado Livre.",
+                "selenium_status": "responsivo",
+                "ml_session": "indefinida",
             }
         except Exception as exc:
             logger.exception("[BOT HEALTHCHECK] Falha inesperada.")
             return {
                 "ok": False,
-                "etapa": "selenium",
-                "mensagem": "Erro inesperado no Selenium durante health check.",
+                "etapa": "mercadolivre_healthcheck_erro",
+                "mensagem": "Erro inesperado no health check passivo do Mercado Livre.",
                 "detalhes": str(exc)[:500],
+                "selenium_status": "nao_responsivo",
+                "ml_session": "indefinida",
             }
+
+    def healthcheck(self) -> dict:
+        return self.healthcheck_passivo()

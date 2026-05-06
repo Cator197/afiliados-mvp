@@ -260,6 +260,27 @@ def ensure_worker_heartbeats_table():
     conn.close()
 
 
+def ensure_worker_diagnostics_table():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS worker_diagnostics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        worker_id TEXT,
+        status TEXT NOT NULL,
+        etapa TEXT,
+        mensagem TEXT,
+        detalhes TEXT,
+        iniciou_em TEXT,
+        finalizou_em TEXT,
+        duracao_ms INTEGER,
+        criado_em TEXT NOT NULL
+    )
+    """)
+    conn.commit()
+    conn.close()
+
+
 def ensure_cadastro_solicitacoes_table():
     conn = get_connection()
     cursor = conn.cursor()

@@ -152,6 +152,28 @@ def send_error(job_id: str, mensagem_erro: str) -> None:
     _raise_for_worker_response(response, f"error job={job_id}")
 
 
+def claim_healthcheck() -> dict | None:
+    response = requests.post(
+        _build_url("/api/worker/healthcheck/claim"),
+        headers=_build_headers(),
+        json={"worker_id": WORKER_ID},
+        timeout=WORKER_REQUEST_TIMEOUT_SECONDS,
+    )
+    payload = _raise_for_worker_response(response, "claim_healthcheck") or {}
+    return payload.get("diagnostic")
+
+
+def report_healthcheck_result(diagnostic_id: int, success: bool, payload: dict) -> None:
+    endpoint = "success" if success else "error"
+    response = requests.post(
+        _build_url(f"/api/worker/healthcheck/{diagnostic_id}/{endpoint}"),
+        headers=_build_headers(),
+        json=payload,
+        timeout=WORKER_REQUEST_TIMEOUT_SECONDS,
+    )
+    _raise_for_worker_response(response, f"healthcheck_{endpoint} id={diagnostic_id}")
+
+
 def wait_for_manual_login_if_needed(bot, last_heartbeat_sent_at: float, plataforma: str):
     logger.warning(
         "[WORKER] Aguardando login manual no MESMO navegador do Selenium. "
@@ -241,6 +263,24 @@ def run() -> None:
                 status="online",
                 message="Worker em loop de polling.",
             )
+
+            diagnostic = claim_healthcheck()
+            if diagnostic:
+                logger.info("[HEALTHCHECK %s] iniciado pelo worker=%s", diagnostic["id"], WORKER_ID)
+                started_at = time.monotonic()
+                bot = get_bot(plataforma=PLATFORM_MERCADOLIVRE)
+                result = bot.healthcheck()
+                duration_ms = int((time.monotonic() - started_at) * 1000)
+                payload = {
+                    "etapa": result.get("etapa"),
+                    "mensagem": result.get("mensagem"),
+                    "detalhes": result.get("detalhes"),
+                    "duracao_ms": duration_ms,
+                }
+                report_healthcheck_result(diagnostic["id"], bool(result.get("ok")), payload)
+                logger.info("[HEALTHCHECK %s] finalizado status=%s", diagnostic["id"], "ok" if result.get("ok") else "erro")
+                time.sleep(1)
+                continue
 
             job = claim_job()
 

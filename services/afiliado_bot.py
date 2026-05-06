@@ -314,3 +314,41 @@ class AfiliadoBot:
         except Exception:
             logger.exception("[BOT FLOW] Falha na etapa '%s' da geração de link.", etapa)
             raise
+
+    def healthcheck(self) -> dict:
+        try:
+            self.driver.get(LINK_BUILDER_URL)
+            if self._esta_em_tela_login():
+                return {
+                    "ok": False,
+                    "etapa": "mercadolivre_session",
+                    "mensagem": "Sessão do Mercado Livre inválida (login necessário).",
+                    "detalhes": (self.driver.current_url or "")[:500],
+                }
+
+            self._wait_first_element(
+                selectors=URL_INPUT_SELECTORS,
+                etapa="mercadolivre_linkbuilder",
+                timeout_message="Campo de URL não encontrado no linkbuilder do Mercado Livre.",
+            )
+            return {
+                "ok": True,
+                "etapa": "finalizado",
+                "mensagem": "Health check concluído com sucesso.",
+                "detalhes": "Portal carregado e campo de URL detectado.",
+            }
+        except FluxoGeracaoLinkError as exc:
+            return {
+                "ok": False,
+                "etapa": exc.etapa,
+                "mensagem": str(exc),
+                "detalhes": "Falha controlada no fluxo de health check.",
+            }
+        except Exception as exc:
+            logger.exception("[BOT HEALTHCHECK] Falha inesperada.")
+            return {
+                "ok": False,
+                "etapa": "selenium",
+                "mensagem": "Erro inesperado no Selenium durante health check.",
+                "detalhes": str(exc)[:500],
+            }

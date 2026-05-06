@@ -25,6 +25,13 @@
         <div id="botStatusBox" class="message-box alert alert-loading" role="status" aria-live="polite">
             Verificando status do robô...
         </div>
+        <div class="card">
+            <div class="actions no-margin">
+                <button type="button" id="runHealthcheckBtn">Testar robô agora</button>
+            </div>
+            <div id="healthcheckLastBox" class="small" style="margin-top:8px;">Sem diagnóstico recente.</div>
+            <div id="healthcheckLogsBox" class="small" style="margin-top:8px;"></div>
+        </div>
 
         {% if erro %}
             <div class="message-box alert alert-error" role="alert" aria-live="assertive">
@@ -277,6 +284,46 @@
 
     carregarStatusBot();
     setInterval(carregarStatusBot, 5000);
+
+    async function carregarHealthchecks() {
+        const lastBox = document.getElementById("healthcheckLastBox");
+        const logsBox = document.getElementById("healthcheckLogsBox");
+        try {
+            const resp = await fetch("/api/admin/worker-healthcheck/logs");
+            const data = await resp.json();
+            if (!data.ok) return;
+            const logs = data.logs || [];
+            if (!logs.length) {
+                lastBox.textContent = "Sem diagnóstico recente.";
+                logsBox.innerHTML = "";
+                return;
+            }
+            const last = logs[0];
+            lastBox.innerHTML = `<strong>Último diagnóstico:</strong> [${last.status}] etapa=${last.etapa || "-"} · ${last.mensagem || "-"} · ${last.finalizou_em || last.criado_em || "-"}`;
+            logsBox.innerHTML = logs.slice(0, 5).map(l => `<div>• [${l.status}] ${l.etapa || "-"} - ${l.mensagem || "-"} (${l.finalizou_em || l.criado_em || "-"})</div>`).join("");
+        } catch (e) {}
+    }
+
+    document.getElementById("runHealthcheckBtn").addEventListener("click", async () => {
+        const btn = document.getElementById("runHealthcheckBtn");
+        btn.disabled = true;
+        try {
+            await fetch("/api/admin/worker-healthcheck/run", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-Token": "{{ csrf_token }}",
+                },
+                body: JSON.stringify({}),
+            });
+        } finally {
+            btn.disabled = false;
+            carregarHealthchecks();
+        }
+    });
+
+    carregarHealthchecks();
+    setInterval(carregarHealthchecks, 5000);
 
     if (window.initAdminLinksPage) {
         window.initAdminLinksPage();

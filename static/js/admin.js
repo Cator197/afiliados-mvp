@@ -104,6 +104,44 @@
         });
     }
 
+
+    function handleSendTestEmail() {
+        const button = document.getElementById('sendTestEmailBtn');
+        const resultBox = document.getElementById('emailTestResult');
+
+        if (!button || !resultBox) {
+            return;
+        }
+
+        const csrfToken = button.dataset.csrfToken || '';
+
+        button.addEventListener('click', async function () {
+            button.disabled = true;
+            const previousText = button.textContent;
+            button.textContent = 'Enviando...';
+            resultBox.textContent = 'Enviando e-mail de teste...';
+
+            try {
+                const resp = await fetch('/api/admin/email/test', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                });
+                const data = await resp.json();
+                resultBox.textContent = data.message || (data.ok ? 'E-mail enviado.' : 'Falha ao enviar e-mail.');
+                mostrarAvisoGlobal(resultBox.textContent, data.ok ? 'success' : 'error');
+            } catch (error) {
+                resultBox.textContent = 'Erro ao enviar e-mail de teste.';
+                mostrarAvisoGlobal(resultBox.textContent, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = previousText;
+            }
+        });
+    }
+
     function handleFilterLoading() {
         const filterForm = document.querySelector('form[data-admin-filter="true"]');
         if (!filterForm) {
@@ -123,5 +161,6 @@
         });
 
         handleFilterLoading();
+        handleSendTestEmail();
     };
 })();

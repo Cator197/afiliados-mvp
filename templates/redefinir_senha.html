@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redefinir senha</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="container" style="max-width:560px;">
+  <h1>Redefinir senha</h1>
+  <div id="mensagem" class="message-box" style="display:none;"></div>
+  {% if not token %}<div class="message-box" style="background:#fff3f3;border-color:#f0b7b7;">Token ausente. Solicite um novo link.</div>{% endif %}
+  <input type="hidden" id="token" value="{{ token }}">
+  <div class="input-group"><label for="novaSenha">Nova senha</label><input type="password" id="novaSenha" minlength="6"></div>
+  <div class="input-group"><label for="confirmarSenha">Confirmar nova senha</label><input type="password" id="confirmarSenha" minlength="6"></div>
+  <div class="actions"><button id="btnSalvar">Salvar nova senha</button><a class="btn" href="{{ url_for('pagina_inicial') }}">Voltar ao login</a></div>
+</div>
+<script>
+const btn=document.getElementById('btnSalvar');const msg=document.getElementById('mensagem');
+function m(t,e=false){msg.style.display='block';msg.textContent=t;msg.style.background=e?'#fff3f3':'#f7f8fa';}
+btn.addEventListener('click', async()=>{const token=document.getElementById('token').value.trim();const nova=document.getElementById('novaSenha').value;const confirmar=document.getElementById('confirmarSenha').value;
+const r=await fetch('/api/redefinir-senha',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,nova_senha:nova,confirmar_senha:confirmar})});
+const d=await r.json();if(!d.ok){m(d.erro||'Erro ao redefinir senha.',true);return;}m(d.message||'Senha redefinida com sucesso.');setTimeout(()=>window.location.href=d.redirect_to||'/login',1200);});
+</script>
+</body>
+</html>

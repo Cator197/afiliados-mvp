@@ -10,12 +10,12 @@
     <div class="container" style="max-width: 560px;">
         <h1>Esqueci minha senha</h1>
         <p class="subtitle">
-            Informe seu código de usuário para enviar a solicitação ao administrador.
+            Informe seu código de usuário ou e-mail para receber o link de redefinição.
         </p>
 
         <div class="input-group">
-            <label for="codigoUsuario">Código do usuário</label>
-            <input type="text" id="codigoUsuario" placeholder="Ex: CAIO001">
+            <label for="identificador">Código do usuário ou e-mail</label>
+            <input type="text" id="identificador" placeholder="Ex: CAIO001 ou usuario@email.com">
         </div>
 
         <div class="actions">
@@ -28,7 +28,7 @@
 
     <script>
         const btnSolicitar = document.getElementById("btnSolicitar");
-        const inputCodigo = document.getElementById("codigoUsuario");
+        const inputIdentificador = document.getElementById("identificador");
         const mensagem = document.getElementById("mensagem");
 
         function mostrarMensagem(texto, erro = false) {
@@ -39,9 +39,9 @@
         }
 
         btnSolicitar.addEventListener("click", async () => {
-            const codigo_usuario = inputCodigo.value.trim().toUpperCase();
-            if (!codigo_usuario) {
-                mostrarMensagem("Informe seu código de usuário.", true);
+            const identificador = inputIdentificador.value.trim();
+            if (!identificador) {
+                mostrarMensagem("Informe seu código de usuário ou e-mail.", true);
                 return;
             }
 
@@ -54,7 +54,7 @@
                     headers: {
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({ codigo_usuario })
+                    body: JSON.stringify({ identificador })
                 });
 
                 const data = await resp.json();

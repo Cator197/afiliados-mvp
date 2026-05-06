@@ -47,13 +47,43 @@ def get_user_by_id(user_id: int):
     return row
 
 
+def get_user_by_email(email: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM usuarios WHERE LOWER(email) = LOWER(?)", (email,))
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+
+def get_user_by_codigo_or_email(identificador: str):
+    valor = (identificador or "").strip()
+    if not valor:
+        return None
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT *
+        FROM usuarios
+        WHERE UPPER(codigo_usuario) = UPPER(?)
+           OR LOWER(email) = LOWER(?)
+        LIMIT 1
+        """,
+        (valor, valor),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+
 def list_users():
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        SELECT id, codigo_usuario, nome, ativo, criado_em, must_change_password
+        SELECT id, codigo_usuario, nome, email, ativo, criado_em, must_change_password
         FROM usuarios
         ORDER BY codigo_usuario ASC
         """
@@ -64,17 +94,17 @@ def list_users():
     return rows
 
 
-def create_user(codigo_usuario: str, nome: str, password: str, criado_em: str, ativo: int = 1, must_change_password: int = 1) -> int:
+def create_user(codigo_usuario: str, nome: str, password: str, criado_em: str, ativo: int = 1, must_change_password: int = 1, email: str | None = None) -> int:
     password_hash = hash_user_password(password)
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em, must_change_password)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO usuarios (codigo_usuario, nome, email, password_hash, ativo, criado_em, must_change_password)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (codigo_usuario, nome, password_hash, ativo, criado_em, must_change_password),
+        (codigo_usuario, nome, email, password_hash, ativo, criado_em, must_change_password),
     )
     user_id = cursor.lastrowid
     conn.commit()
@@ -118,6 +148,16 @@ def update_user_active_status(user_id: int, ativo: int) -> int:
         """,
         (ativo, user_id),
     )
+    conn.commit()
+    rows_updated = cursor.rowcount
+    conn.close()
+    return rows_updated
+
+
+def update_user_email(user_id: int, email: str | None) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET email = ? WHERE id = ?", (email, user_id))
     conn.commit()
     rows_updated = cursor.rowcount
     conn.close()

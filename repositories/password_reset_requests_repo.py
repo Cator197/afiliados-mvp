@@ -155,3 +155,66 @@ def close_active_password_reset_requests(codigo_usuario: str, atualizado_em: str
     rows_updated = cursor.rowcount
     conn.close()
     return rows_updated
+
+
+def create_password_reset_token(usuario_id: int, email: str, token_hash: str, criado_em: str, expira_em: str, ip_solicitante=None, user_agent=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO password_reset_tokens (usuario_id, email, token_hash, status, criado_em, expira_em, usado_em, ip_solicitante, user_agent)
+        VALUES (?, ?, ?, 'ativo', ?, ?, NULL, ?, ?)
+        """,
+        (usuario_id, email, token_hash, criado_em, expira_em, ip_solicitante, user_agent),
+    )
+    token_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return token_id
+
+
+def invalidate_active_tokens_for_user(usuario_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE password_reset_tokens SET status = 'invalidado' WHERE usuario_id = ? AND status = 'ativo'",
+        (usuario_id,),
+    )
+    conn.commit()
+    rows_updated = cursor.rowcount
+    conn.close()
+    return rows_updated
+
+
+def get_valid_reset_token(token_hash: str, now: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT *
+        FROM password_reset_tokens
+        WHERE token_hash = ?
+          AND status = 'ativo'
+          AND usado_em IS NULL
+          AND expira_em >= ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (token_hash, now),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+
+def mark_reset_token_used(token_id: int, usado_em: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE password_reset_tokens SET status = 'usado', usado_em = ? WHERE id = ?",
+        (usado_em, token_id),
+    )
+    conn.commit()
+    rows_updated = cursor.rowcount
+    conn.close()
+    return rows_updated

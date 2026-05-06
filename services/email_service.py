@@ -208,3 +208,26 @@ def notify_admin_new_link_pending(link):
     except Exception as exc:
         current_app.logger.warning("[EMAIL_NOTIFY] falha ao notificar link: %s", exc.__class__.__name__)
         return {"ok": False, "message": "Falha controlada ao notificar link."}
+
+
+def send_password_reset_email(user, reset_url: str):
+    email = ((user or {}).get("email") or "").strip()
+    if not email:
+        return {"ok": False, "message": "Usuário sem e-mail cadastrado."}
+
+    subject = "Recuperação de senha - Minha Oferta"
+    body_text = (
+        "Olá,\n\n"
+        "Recebemos uma solicitação para redefinir sua senha no Minha Oferta.\n\n"
+        "Clique no link abaixo para criar uma nova senha:\n"
+        f"{reset_url}\n\n"
+        "Este link expira em 60 minutos.\n"
+        "Se você não solicitou isso, ignore este e-mail."
+    )
+    body_html = (
+        "<p>Olá,</p>"
+        "<p>Recebemos uma solicitação para redefinir sua senha no Minha Oferta.</p>"
+        f"<p><a href=\"{reset_url}\">Clique no link para criar uma nova senha</a></p>"
+        "<p>Este link expira em 60 minutos.<br>Se você não solicitou isso, ignore este e-mail.</p>"
+    )
+    return send_email(to=email, subject=subject, body_text=body_text, body_html=body_html)

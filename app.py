@@ -1931,7 +1931,32 @@ def listar_links_usuario(codigo_usuario):
             "erro": "Usuário não encontrado."
         }), 404
 
-    links = get_links_by_usuario_id(usuario["id"])
+    try:
+        links = get_links_by_usuario_id(usuario["id"])
+        links_payload = []
+        for link in links:
+            status = link["status"] if "status" in link.keys() else None
+            links_payload.append({
+                "id": link["id"],
+                "job_id": link["job_id"],
+                "url_afiliado": link["url_afiliado"],
+                "plataforma": link["plataforma"],
+                "plataforma_label": get_platform_label(link["plataforma"]),
+                "status": status,
+                "status_label": get_status_label(status, context="user"),
+                "status_description": get_status_description(status, context="user"),
+                "status_badge_class": get_status_badge_class(status),
+                "descricao_item": link["descricao_item"],
+                "foto_item_url": link["foto_item_url"],
+                "valor_cashback": link["valor_cashback"],
+                "criado_em": link["criado_em"],
+            })
+    except Exception:
+        app.logger.exception("[HISTORICO] Falha ao montar payload de links para %s", codigo_usuario)
+        return jsonify({
+            "ok": False,
+            "erro": "Não foi possível carregar o histórico no momento. Tente novamente em instantes."
+        }), 500
 
     return jsonify({
         "ok": True,
@@ -1940,24 +1965,7 @@ def listar_links_usuario(codigo_usuario):
             "codigo_usuario": usuario["codigo_usuario"],
             "nome": usuario["nome"]
         },
-        "links": [
-            {
-                "id": link["id"],
-                "job_id": link["job_id"],
-                "url_afiliado": link["url_afiliado"],
-                "plataforma": link["plataforma"],
-                "plataforma_label": get_platform_label(link["plataforma"]),
-                "status": link["status"],
-                "status_label": get_status_label(link["status"], context="user"),
-                "status_description": get_status_description(link["status"], context="user"),
-                "status_badge_class": get_status_badge_class(link["status"]),
-                "descricao_item": link["descricao_item"],
-                "foto_item_url": link["foto_item_url"],
-                "valor_cashback": link["valor_cashback"],
-                "criado_em": link["criado_em"],
-            }
-            for link in links
-        ]
+        "links": links_payload
     })
 
 

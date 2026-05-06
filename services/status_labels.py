@@ -83,14 +83,14 @@ STATUS_BADGE_CLASS = {
 
 def get_status_label(status: str | None, context: str = "user") -> str:
     if not status:
-        return "-"
-    return STATUS_LABELS.get(context, {}).get(status, status.replace("_", " ").capitalize())
+        return "Status não identificado"
+    return STATUS_LABELS.get(context, {}).get(status, "Status não identificado")
 
 
 def get_status_description(status: str | None, context: str = "user") -> str:
     if not status:
-        return ""
-    return STATUS_DESCRIPTIONS.get(context, {}).get(status, "")
+        return "Entre em contato com o suporte se precisar de ajuda."
+    return STATUS_DESCRIPTIONS.get(context, {}).get(status, "Entre em contato com o suporte se precisar de ajuda.")
 
 
 def get_status_badge_class(status: str | None) -> str:

@@ -1,0 +1,146 @@
+:root {
+  --mo-bg: #ffffff;
+  --mo-surface: #f7f8fa;
+  --mo-border: #d9dde5;
+  --mo-text: #1f2937;
+  --mo-muted: #6b7280;
+  --mo-primary: #2563eb;
+  --mo-primary-hover: #1d4ed8;
+}
+
+.mo-popup-body {
+  margin: 0;
+  padding: 0;
+  background: var(--mo-bg);
+  color: var(--mo-text);
+  font-family: Arial, sans-serif;
+}
+
+.mo-popup {
+  width: 320px;
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+.mo-title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.mo-subtitle {
+  margin: 4px 0 12px;
+  color: var(--mo-muted);
+  font-size: 13px;
+}
+
+.mo-status-box {
+  background: var(--mo-surface);
+  border: 1px solid var(--mo-border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.mo-status {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mo-url {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--mo-muted);
+  word-break: break-all;
+}
+
+.mo-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mo-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mo-btn-primary {
+  background: var(--mo-primary);
+  color: #fff;
+}
+
+.mo-btn-primary:hover {
+  background: var(--mo-primary-hover);
+}
+
+.mo-btn-secondary {
+  background: #fff;
+  color: var(--mo-text);
+  border-color: var(--mo-border);
+}
+
+.mo-footer {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--mo-muted);
+}
+
+.mo-banner {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: min(280px, calc(100vw - 24px));
+  background: #fff;
+  border: 1px solid var(--mo-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+  padding: 10px;
+  z-index: 2147483600;
+  font-family: Arial, sans-serif;
+  color: var(--mo-text);
+}
+
+.mo-banner-title {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.mo-banner-text {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--mo-muted);
+}
+
+.mo-banner-action {
+  border: 1px solid var(--mo-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--mo-surface);
+  color: var(--mo-text);
+  font-size: 12px;
+  cursor: default;
+}
+
+.mo-banner-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  color: var(--mo-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@media (max-width: 420px) {
+  .mo-banner {
+    right: 8px;
+    bottom: 8px;
+  }
+}

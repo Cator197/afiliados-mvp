@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "MinhaOferta Cashback",
+  "version": "0.1.0",
+  "description": "Gere links com cashback no Mercado Livre usando o MinhaOferta.",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.mercadolivre.com.br/*",
+    "https://mercadolivre.com.br/*",
+    "https://minhaoferta.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.mercadolivre.com.br/*",
+        "https://mercadolivre.com.br/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

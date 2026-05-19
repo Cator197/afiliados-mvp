@@ -98,6 +98,7 @@ class ExtensionEndpointsTests(unittest.TestCase):
         self.assertTrue(payload["is_product_page"])
         self.assertEqual(payload["estimated_cashback_percent"], 3.0)
         self.assertIn("estimated_cashback_label", payload)
+        self.assertIn("cashback_rule", payload)
 
 
     def test_product_preview_with_price_returns_estimated_value(self):
@@ -110,6 +111,7 @@ class ExtensionEndpointsTests(unittest.TestCase):
         self.assertEqual(payload["estimated_cashback_percent"], 3.0)
         self.assertEqual(payload["estimated_cashback_value"], 12.58)
         self.assertEqual(payload["estimated_cashback_label"], "Cashback estimado de até R$ 12,58")
+        self.assertEqual(payload["cashback_rule"]["match_type"], "default")
 
     def test_product_preview_invalid_price_keeps_percent_without_value(self):
         response = self.client.post(

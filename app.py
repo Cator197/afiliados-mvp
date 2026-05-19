@@ -117,7 +117,7 @@ from repositories.password_reset_attempts_repo import (
     create_password_reset_attempt,
 )
 from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_usuarios_email_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table, ensure_password_reset_tokens_table, ensure_password_reset_attempts_table, ensure_worker_diagnostics_table
-from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns
+from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns, ensure_cashback_rules_default
 from services.extension_service import build_extension_status_response, build_product_preview
 from services.extension_service import validate_extension_url, detect_mercadolivre_product_page
 from services.platform_utils import (
@@ -152,6 +152,7 @@ from services.email_service import (
     notify_user_cashback_paid,
     send_password_reset_email,
 )
+from repositories.cashback_rules_repo import list_cashback_rules, get_cashback_rule_by_id, create_cashback_rule, update_cashback_rule, toggle_cashback_rule
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -201,6 +202,7 @@ ensure_cadastro_solicitacoes_table()
 ensure_password_reset_requests_table()
 ensure_password_reset_tokens_table()
 ensure_password_reset_attempts_table()
+ensure_cashback_rules_default()
 
 
 def login_required_admin(f):
@@ -309,6 +311,40 @@ def password_change_required_response():
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_cashback_rule_form(form):
+    allowed_match_types = {"default", "path_contains", "category_hint_contains"}
+    platform = (form.get("platform") or "").strip().lower()
+    name = (form.get("name") or "").strip()
+    match_type = (form.get("match_type") or "").strip().lower()
+    match_value = (form.get("match_value") or "").strip() or None
+    notes = (form.get("notes") or "").strip() or None
+    active = 1 if str(form.get("active", "")).strip() in {"1", "on", "true"} else 0
+    try:
+        cashback_percent = float((form.get("cashback_percent") or "").strip())
+    except ValueError:
+        return None, "Percentual de cashback inválido."
+    try:
+        priority = int((form.get("priority") or "").strip())
+    except ValueError:
+        return None, "Prioridade inválida."
+    if not platform or not name or not match_type:
+        return None, "Platform, nome e tipo de regra são obrigatórios."
+    if match_type not in allowed_match_types:
+        return None, "Tipo de regra inválido."
+    if cashback_percent < 0 or cashback_percent > 20:
+        return None, "Cashback deve estar entre 0 e 20."
+    return {
+        "platform": platform,
+        "name": name,
+        "match_type": match_type,
+        "match_value": match_value,
+        "cashback_percent": cashback_percent,
+        "priority": priority,
+        "active": active,
+        "notes": notes,
+    }, None
 
 
 PLATFORM_LABELS = {
@@ -1199,6 +1235,55 @@ def admin_atualizar_usuario_email(user_id):
 
     update_user_email(user_id=user_id, email=email_final)
     return redirect(url_for("admin_usuarios", sucesso="E-mail atualizado com sucesso."))
+
+
+@app.route("/admin/cashback-rules", methods=["GET"])
+@login_required_admin
+def admin_cashback_rules():
+    regras = list_cashback_rules()
+    return render_template("admin_cashback_rules.html", regras=regras, admin_username=session.get("admin_username"), erro=request.args.get("erro"), sucesso=request.args.get("sucesso"))
+
+
+@app.route("/admin/cashback-rules/new", methods=["GET", "POST"])
+@login_required_admin
+def admin_cashback_rules_new():
+    if request.method == "GET":
+        return render_template("admin_cashback_rule_form.html", rule=None, admin_username=session.get("admin_username"), erro=request.args.get("erro"))
+    payload, erro = parse_cashback_rule_form(request.form)
+    if erro:
+        return redirect(url_for("admin_cashback_rules_new", erro=erro))
+    now = now_str()
+    payload["created_at"] = now
+    payload["updated_at"] = now
+    create_cashback_rule(payload)
+    return redirect(url_for("admin_cashback_rules", sucesso="Regra criada com sucesso."))
+
+
+@app.route("/admin/cashback-rules/<int:rule_id>/edit", methods=["GET", "POST"])
+@login_required_admin
+def admin_cashback_rules_edit(rule_id):
+    regra = get_cashback_rule_by_id(rule_id)
+    if not regra:
+        return redirect(url_for("admin_cashback_rules", erro="Regra não encontrada."))
+    if request.method == "GET":
+        return render_template("admin_cashback_rule_form.html", rule=regra, admin_username=session.get("admin_username"), erro=request.args.get("erro"))
+    payload, erro = parse_cashback_rule_form(request.form)
+    if erro:
+        return redirect(url_for("admin_cashback_rules_edit", rule_id=rule_id, erro=erro))
+    payload["updated_at"] = now_str()
+    update_cashback_rule(rule_id, payload)
+    return redirect(url_for("admin_cashback_rules", sucesso="Regra atualizada com sucesso."))
+
+
+@app.route("/admin/cashback-rules/<int:rule_id>/toggle", methods=["POST"])
+@login_required_admin
+@csrf_protected
+def admin_cashback_rules_toggle(rule_id):
+    regra = get_cashback_rule_by_id(rule_id)
+    if not regra:
+        return redirect(url_for("admin_cashback_rules", erro="Regra não encontrada."))
+    toggle_cashback_rule(rule_id, 0 if regra["active"] else 1, now_str())
+    return redirect(url_for("admin_cashback_rules", sucesso="Status da regra atualizado."))
 
 
 @app.route("/health", methods=["GET"])

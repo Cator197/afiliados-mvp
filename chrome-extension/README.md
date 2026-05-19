@@ -125,3 +125,13 @@ Neste PR, o preview da extensão passou a usar estimativa calculada no backend:
 - o valor exibido é apenas estimativa visual de preview;
 - cashback oficial continua dependente do fluxo atual do MinhaOferta;
 - ainda não existe regra administrável por categoria/admin neste PR.
+
+## PR 8 — Regras administráveis de cashback
+
+O backend agora consulta regras de cashback cadastradas no banco para montar o **cashback estimado** do endpoint `POST /api/extension/product-preview`.
+
+- Regras podem ser configuradas no admin por plataforma, `path_contains` e `category_hint_contains`.
+- Existe fallback para regra default da plataforma (Mercado Livre) e fallback final por configuração.
+- Essas regras valem **somente** para estimativa exibida na extensão.
+- A extensão não calcula cashback oficial e não altera fluxo financeiro.
+- A geração de link do PR 6 continua igual.

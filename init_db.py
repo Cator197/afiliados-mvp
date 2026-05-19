@@ -2,6 +2,7 @@ from datetime import datetime
 
 from database import get_connection, ensure_directories
 from config import ADMIN_DEFAULT_USERNAME, ADMIN_DEFAULT_PASSWORD
+from config import MERCADOLIVRE_DEFAULT_CASHBACK_PERCENT
 from repositories.admin_repo import hash_password
 
 
@@ -129,6 +130,24 @@ def create_tables():
         updated_em TEXT NOT NULL
     )
     """)
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cashback_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT NOT NULL,
+            name TEXT NOT NULL,
+            match_type TEXT NOT NULL,
+            match_value TEXT,
+            cashback_percent REAL NOT NULL,
+            priority INTEGER NOT NULL DEFAULT 100,
+            active INTEGER NOT NULL DEFAULT 1,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
 
     conn.commit()
     conn.close()
@@ -263,6 +282,44 @@ def ensure_usuarios_email_column():
     existing_columns = {row["name"] for row in cursor.fetchall()}
     if "email" not in existing_columns:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
+    conn.commit()
+    conn.close()
+
+
+def ensure_cashback_rules_default():
+    conn = get_connection()
+    cursor = conn.cursor()
+    now = now_str()
+    cursor.execute(
+        """
+        SELECT id FROM cashback_rules
+        WHERE LOWER(platform) = 'mercadolivre'
+          AND match_type = 'default'
+          AND active = 1
+        LIMIT 1
+        """
+    )
+    row = cursor.fetchone()
+    if not row:
+        cursor.execute(
+            """
+            INSERT INTO cashback_rules (
+                platform, name, match_type, match_value, cashback_percent, priority, active, notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "mercadolivre",
+                "Mercado Livre padrão",
+                "default",
+                None,
+                float(MERCADOLIVRE_DEFAULT_CASHBACK_PERCENT),
+                100,
+                1,
+                "Regra padrão criada automaticamente para preview da extensão.",
+                now,
+                now,
+            ),
+        )
     conn.commit()
     conn.close()
 

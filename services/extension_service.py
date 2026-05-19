@@ -4,10 +4,12 @@ from urllib.parse import urlparse
 from flask import url_for
 
 from config import MERCADOLIVRE_DEFAULT_CASHBACK_PERCENT
+from repositories.cashback_rules_repo import list_cashback_rules
 
 PLATFORM_MERCADOLIVRE = "mercadolivre"
 ALLOWED_MERCADOLIVRE_HOSTS = {"mercadolivre.com.br", "www.mercadolivre.com.br"}
 MAX_PREVIEW_PRICE = Decimal("1000000")
+ALLOWED_MATCH_TYPES = {"default", "path_contains", "category_hint_contains"}
 
 
 def get_current_user_from_session(session_obj):
@@ -40,9 +42,57 @@ def build_extension_status_response(session_obj):
 
 
 def get_default_cashback_percent(platform: str):
+    platform = normalize_platform(platform)
     if platform != PLATFORM_MERCADOLIVRE:
         return None
     return float(MERCADOLIVRE_DEFAULT_CASHBACK_PERCENT)
+
+
+def normalize_platform(platform: str | None):
+    return (platform or "").strip().lower()
+
+
+def rule_matches(rule, url: str, category_hint=None):
+    match_type = (rule["match_type"] or "").strip().lower()
+    match_value = (rule["match_value"] or "").strip().lower()
+    if match_type == "default":
+        return True
+    if match_type == "path_contains":
+        return bool(match_value) and match_value in (url or "").strip().lower()
+    if match_type == "category_hint_contains":
+        return bool(match_value) and match_value in str(category_hint or "").strip().lower()
+    return False
+
+
+def get_applicable_cashback_rule(platform: str, url: str, category_hint=None):
+    normalized_platform = normalize_platform(platform)
+    rules = list_cashback_rules(platform=normalized_platform)
+    specific_rules = [r for r in rules if (r["match_type"] or "").lower() != "default" and r["active"] == 1]
+    for rule in specific_rules:
+        if rule_matches(rule, url, category_hint):
+            return rule
+    for rule in rules:
+        if (rule["match_type"] or "").lower() == "default" and rule["active"] == 1:
+            return rule
+    return None
+
+
+def build_cashback_preview(platform: str, url: str, price=None, category_hint=None):
+    rule = get_applicable_cashback_rule(platform, url, category_hint)
+    normalized_price = parse_price_for_preview(price)
+    if rule:
+        percent = float(rule["cashback_percent"])
+        rule_meta = {"id": rule["id"], "name": rule["name"], "match_type": rule["match_type"]}
+    else:
+        percent = get_default_cashback_percent(platform)
+        rule_meta = {"id": None, "name": "Fallback padrão", "match_type": "fallback"}
+    estimated_value = calculate_estimated_cashback(normalized_price, percent)
+    return {
+        "estimated_cashback_percent": percent,
+        "estimated_cashback_value": estimated_value,
+        "estimated_cashback_label": format_cashback_label(percent, estimated_value),
+        "cashback_rule": rule_meta,
+    }
 
 
 def parse_price_for_preview(value):
@@ -144,16 +194,15 @@ def build_product_preview(url: str, price=None, title=None, category_hint=None):
             "cta": None,
         }
 
-    percent = get_default_cashback_percent(platform)
-    normalized_price = parse_price_for_preview(price)
-    estimated_value = calculate_estimated_cashback(normalized_price, percent)
+    cashback_preview = build_cashback_preview(platform, url, price=price, category_hint=category_hint)
     return {
         "is_valid": True,
         "platform": platform,
         "is_product_page": True,
-        "estimated_cashback_percent": percent,
-        "estimated_cashback_value": estimated_value,
-        "estimated_cashback_label": format_cashback_label(percent, estimated_value),
+        "estimated_cashback_percent": cashback_preview["estimated_cashback_percent"],
+        "estimated_cashback_value": cashback_preview["estimated_cashback_value"],
+        "estimated_cashback_label": cashback_preview["estimated_cashback_label"],
+        "cashback_rule": cashback_preview["cashback_rule"],
         "message": "Produto com cashback disponível.",
         "cta": "Gerar link com cashback",
     }

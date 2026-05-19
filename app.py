@@ -117,6 +117,7 @@ from repositories.password_reset_attempts_repo import (
 )
 from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_usuarios_email_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table, ensure_password_reset_tokens_table, ensure_password_reset_attempts_table, ensure_worker_diagnostics_table
 from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns
+from services.extension_service import build_extension_status_response, build_product_preview
 from services.platform_utils import (
     PLATFORM_MERCADOLIVRE,
     PLATFORM_SHOPEE,
@@ -1242,6 +1243,22 @@ def validate_worker_request():
 
     return None
 
+
+
+
+@app.route("/api/extension/status", methods=["GET"])
+def extension_status():
+    return jsonify(build_extension_status_response(session))
+
+
+@app.route("/api/extension/product-preview", methods=["POST"])
+def extension_product_preview():
+    data = request.get_json(silent=True) or {}
+    raw_url = (data.get("url") or "").strip()
+    if not raw_url:
+        return jsonify({"ok": False, "erro": "URL é obrigatória."}), 400
+
+    return jsonify(build_product_preview(raw_url))
 
 @app.route("/api/login", methods=["POST"])
 def login_usuario():

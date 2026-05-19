@@ -96,7 +96,44 @@ class ExtensionEndpointsTests(unittest.TestCase):
         payload = response.get_json()
         self.assertTrue(payload["is_valid"])
         self.assertTrue(payload["is_product_page"])
-        self.assertEqual(payload["estimated_cashback_percent"], 3)
+        self.assertEqual(payload["estimated_cashback_percent"], 3.0)
+        self.assertIn("estimated_cashback_label", payload)
+
+
+    def test_product_preview_with_price_returns_estimated_value(self):
+        response = self.client.post(
+            "/api/extension/product-preview",
+            json={"url": "https://www.mercadolivre.com.br/p/MLB123", "price": "R$ 419,27"},
+        )
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["estimated_cashback_percent"], 3.0)
+        self.assertEqual(payload["estimated_cashback_value"], 12.58)
+        self.assertEqual(payload["estimated_cashback_label"], "Cashback estimado de até R$ 12,58")
+
+    def test_product_preview_invalid_price_keeps_percent_without_value(self):
+        response = self.client.post(
+            "/api/extension/product-preview",
+            json={"url": "https://www.mercadolivre.com.br/p/MLB123", "price": "abc"},
+        )
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["estimated_cashback_percent"], 3.0)
+        self.assertIsNone(payload["estimated_cashback_value"])
+
+    def test_product_preview_never_creates_job(self):
+        response = self.client.post(
+            "/api/extension/product-preview",
+            json={"url": "https://www.mercadolivre.com.br/p/MLB123", "price": 100},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(1) AS total FROM jobs")
+        row = cursor.fetchone()
+        conn.close()
+        self.assertEqual(row["total"], 0)
 
     def test_product_preview_fake_domain_is_rejected(self):
         response = self.client.post("/api/extension/product-preview", json={"url": "https://mercadolivre.com.br.fake.com/p/MLB123"})

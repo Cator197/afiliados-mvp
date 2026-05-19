@@ -113,3 +113,15 @@ curl -i -X POST https://minhaoferta.com/api/extension/product-preview \
 - A extensão não chama worker diretamente.
 - A extensão não envia cashback/comissão oficial para o backend.
 - O polling da extensão é limitado (intervalo de ~2.5s, até 20 tentativas) para evitar abuso.
+
+## PR 7 — Cashback estimado
+
+Neste PR, o preview da extensão passou a usar estimativa calculada no backend:
+
+- backend retorna percentual padrão configurável por `MERCADOLIVRE_DEFAULT_CASHBACK_PERCENT` (padrão `3.0`, com fallback seguro);
+- extensão tenta capturar preço visível de forma leve (meta price, atributos andes e seletores comuns);
+- backend normaliza o preço e calcula `estimated_cashback_value` quando válido;
+- backend retorna `estimated_cashback_label` pronto para UI (valor em R$ quando houver preço, ou percentual quando não houver);
+- o valor exibido é apenas estimativa visual de preview;
+- cashback oficial continua dependente do fluxo atual do MinhaOferta;
+- ainda não existe regra administrável por categoria/admin neste PR.

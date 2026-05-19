@@ -1260,7 +1260,14 @@ def extension_product_preview():
     if not raw_url:
         return jsonify({"ok": False, "erro": "URL é obrigatória."}), 400
 
-    return jsonify(build_product_preview(raw_url))
+    return jsonify(
+        build_product_preview(
+            raw_url,
+            price=data.get("price"),
+            title=data.get("title"),
+            category_hint=data.get("category_hint"),
+        )
+    )
 
 
 def create_link_job_for_user(usuario_id: int, url: str):

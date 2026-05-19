@@ -46,6 +46,12 @@
   font-weight: 600;
 }
 
+.mo-status-details {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--mo-muted);
+}
+
 .mo-url {
   margin: 8px 0 0;
   font-size: 12px;

@@ -12,26 +12,46 @@ Base inicial da extensão para gerar links com cashback no Mercado Livre.
 4. Clicar em Carregar sem compactação.
 5. Selecionar a pasta chrome-extension/.
 6. Abrir uma página do Mercado Livre.
-7. Verificar se o banner aparece.
+7. Verificar se o banner aparece apenas em página de produto.
 8. Clicar no ícone da extensão e verificar o popup.
 
-## O que este PR faz
+## PR 3 — Detecção de produto
 
-- Cria estrutura inicial da extensão.
-- Cria manifest.json.
-- Cria popup básico.
-- Captura URL atual no popup.
-- Detecta se a aba atual é Mercado Livre.
-- Insere banner visual no Mercado Livre.
-- Não integra com backend.
-- Não gera link ainda.
+Agora a extensão:
 
-## O que fica para próximos PRs
+- diferencia página incompatível, Mercado Livre genérico e página de produto;
+- mostra banner automático somente quando a página parece ser de produto;
+- mantém verificação conservadora (em dúvida, considera não-produto);
+- revalida a classificação após carregamento e em mudanças dinâmicas de URL/DOM;
+- ainda não chama backend;
+- ainda não gera link.
 
-- Detectar página de produto.
-- Criar endpoints no backend.
-- Verificar login.
-- Gerar job.
-- Consultar status.
-- Mostrar link final.
-- Calcular cashback estimado.
+## Testes manuais
+
+### Teste 1
+Abrir google.com.
+
+**Esperado:** popup mostra página incompatível.
+
+### Teste 2
+Abrir https://www.mercadolivre.com.br/
+
+**Esperado:** popup mostra Mercado Livre, mas não produto.
+**Esperado:** banner não aparece.
+
+### Teste 3
+Abrir uma busca no Mercado Livre.
+
+**Esperado:** popup mostra Mercado Livre, mas não produto.
+**Esperado:** banner não aparece.
+
+### Teste 4
+Abrir uma página real de produto no Mercado Livre.
+
+**Esperado:** popup mostra produto detectado.
+**Esperado:** banner aparece.
+
+### Teste 5
+Fechar o banner com X.
+
+**Esperado:** banner é removido.

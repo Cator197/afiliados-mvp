@@ -1,73 +1,52 @@
 (function initMinhaOfertaBanner() {
   const BANNER_ID = 'mo-cashback-banner';
   const BACKEND_BASE_URL = 'https://minhaoferta.com';
+  const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
+  const CHECK_URL_INTERVAL_MS = 1200;
   const POLL_INTERVAL_MS = 2500;
   const POLL_MAX_ATTEMPTS = 20;
-  let lastValidatedUrl = '';
+  let lastUrl = '';
   let previewRequestedForUrl = '';
+  let isGenerating = false;
+  let currentAffiliateUrl = '';
+
+  const normalizeUrl = (u) => (u || '').split('#')[0];
+  const keyForUrl = (u) => `mo_banner_closed_${normalizeUrl(u)}`;
+  const isMercadoLivreHost = (h) => h === 'www.mercadolivre.com.br' || h === 'mercadolivre.com.br';
 
   function classifyCurrentPage() {
     const host = window.location.hostname;
     const path = window.location.pathname;
     const fullUrl = `${host}${path}${window.location.search}`;
-    const isMercadoLivre = host === 'www.mercadolivre.com.br' || host === 'mercadolivre.com.br';
-    if (!isMercadoLivre) return { isMercadoLivre: false, isProductPage: false };
+    if (!isMercadoLivreHost(host)) return { isMercadoLivre: false, isProductPage: false };
     const hasProductPath = path.includes('/p/');
     const hasMlbPattern = /(?:\/|^)(MLB-\d+)/i.test(path) || /MLB-?\d+/i.test(fullUrl);
     return { isMercadoLivre: true, isProductPage: hasProductPath || hasMlbPattern };
   }
 
-  function parsePriceCandidate(value) {
-    if (value == null) return null;
-    const raw = String(value).trim();
-    if (!raw) return null;
-    const cleaned = raw.replace(/R\$/gi, '').replace(/\s+/g, '');
-    const hasComma = cleaned.includes(',');
-    const hasDot = cleaned.includes('.');
-    let normalized = cleaned;
-    if (hasComma && hasDot) normalized = cleaned.replace(/\./g, '').replace(',', '.');
-    else if (hasComma) normalized = cleaned.replace(',', '.');
-    const parsed = Number(normalized);
-    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 1000000) return null;
-    return parsed;
+  async function wasBannerClosedRecently(url) {
+    const key = keyForUrl(url);
+    const res = await chrome.storage.local.get([key]);
+    const ts = Number(res[key] || 0);
+    return ts > 0 && Date.now() - ts < DISMISS_TTL_MS;
   }
 
-  function detectPriceFromPage() {
-    const candidates = [];
-    const metaPrice = document.querySelector('meta[itemprop="price"]')?.getAttribute('content');
-    if (metaPrice) candidates.push(metaPrice);
-
-    const andesAmount = document.querySelector('[data-andes-money-amount]')?.getAttribute('data-andes-money-amount');
-    if (andesAmount) candidates.push(andesAmount);
-
-    const selectors = [
-      '.andes-money-amount__fraction',
-      '.ui-pdp-price__second-line .andes-money-amount__fraction',
-      '.ui-pdp-price__part',
-      '.price-tag-fraction'
-    ];
-    selectors.forEach((selector) => {
-      const text = document.querySelector(selector)?.textContent;
-      if (text) candidates.push(text);
-    });
-
-    for (const candidate of candidates) {
-      const price = parsePriceCandidate(candidate);
-      if (price) return price;
-    }
-    return null;
+  async function rememberBannerClosed(url) {
+    const key = keyForUrl(url);
+    const cleanupBefore = Date.now() - (DISMISS_TTL_MS * 3);
+    const all = await chrome.storage.local.get(null);
+    const toRemove = [];
+    Object.keys(all).forEach((k) => { if (k.startsWith('mo_banner_closed_') && Number(all[k] || 0) < cleanupBefore) toRemove.push(k); });
+    if (toRemove.length) await chrome.storage.local.remove(toRemove);
+    await chrome.storage.local.set({ [key]: Date.now() });
   }
 
   async function fetchJson(path, options = {}) {
-    const response = await fetch(`${BACKEND_BASE_URL}${path}`, {
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-      ...options
-    });
+    const response = await fetch(`${BACKEND_BASE_URL}${path}`, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...options });
     return { status: response.status, body: await response.json() };
   }
 
-  async function pollJob(jobId) { /* unchanged */
+  async function pollJob(jobId) {
     for (let i = 0; i < POLL_MAX_ATTEMPTS; i += 1) {
       const { body } = await fetchJson(`/api/extension/jobs/${jobId}`);
       if (body.status === 'success' && body.affiliate_url) return body.affiliate_url;
@@ -77,48 +56,90 @@
     throw new Error('timeout');
   }
 
-  function setBannerState(banner, state, extra) {
-    const text = banner.querySelector('.mo-banner-text');
-    const subtext = banner.querySelector('.mo-banner-subtext');
+  function removeBanner() { document.getElementById(BANNER_ID)?.remove(); }
+
+  function setBannerState(banner, state, text = '', subtext = '') {
+    const t = banner.querySelector('.mo-banner-text');
+    const s = banner.querySelector('.mo-banner-subtext');
     const actions = banner.querySelector('.mo-banner-actions');
-    if (state === 'loading') { text.textContent = 'Gerando seu link...'; subtext.textContent = 'Seu pedido está em processamento.'; actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary mo-btn-disabled" disabled>Gerando...</button>'; return; }
-    if (state === 'done') { text.textContent = 'Link gerado com sucesso.'; subtext.textContent = extra || ''; actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary" data-action="copy">Copiar link</button>'; actions.querySelector('[data-action="copy"]')?.addEventListener('click', async () => navigator.clipboard.writeText(extra || '')); return; }
-    if (state === 'error') { text.textContent = extra || 'Não foi possível conectar ao MinhaOferta agora.'; subtext.textContent = ''; actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary" data-action="open-site">Entrar no MinhaOferta</button>'; actions.querySelector('[data-action="open-site"]')?.addEventListener('click', () => window.open('https://minhaoferta.com', '_blank', 'noopener,noreferrer')); return; }
-    text.textContent = extra || 'Cashback disponível neste produto.';
-    subtext.textContent = 'Gere seu link antes de comprar para participar do cashback.';
+    t.textContent = text;
+    s.textContent = subtext;
+
+    if (state === 'loading') {
+      actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary" disabled>Gerando...</button>';
+      return;
+    }
+    if (state === 'done') {
+      actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary" data-action="copy">Copiar link</button><button type="button" class="mo-btn mo-btn-secondary" data-action="open">Abrir link</button><button type="button" class="mo-btn mo-btn-secondary" data-action="history">Ver histórico</button>';
+      actions.querySelector('[data-action="copy"]')?.addEventListener('click', ()=> navigator.clipboard.writeText(currentAffiliateUrl));
+      actions.querySelector('[data-action="open"]')?.addEventListener('click', ()=> window.open(currentAffiliateUrl, '_blank', 'noopener,noreferrer'));
+      actions.querySelector('[data-action="history"]')?.addEventListener('click', ()=> window.open(`${BACKEND_BASE_URL}/historico`, '_blank', 'noopener,noreferrer'));
+      return;
+    }
+
     actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary" data-action="generate">Gerar link com cashback</button>';
-    actions.querySelector('[data-action="generate"]')?.addEventListener('click', async () => {
-      setBannerState(banner, 'loading');
+    const btn = actions.querySelector('[data-action="generate"]');
+    btn?.addEventListener('click', async () => {
+      if (isGenerating) return;
+      isGenerating = true;
+      setBannerState(banner, 'loading', 'Gerando seu link com cashback...', 'Isso pode levar alguns segundos.');
       try {
         const { status, body } = await fetchJson('/api/extension/generate-link', { method: 'POST', body: JSON.stringify({ url: window.location.href }) });
-        if (status === 401 || body.error === 'login_required') return setBannerState(banner, 'error', 'Entre no MinhaOferta para gerar seu link com cashback.');
-        if (body.error === 'invalid_url') return setBannerState(banner, 'error', 'Esta página não é compatível.');
-        if (body.error === 'not_product_page') return setBannerState(banner, 'error', 'Acesse uma página de produto do Mercado Livre.');
-        const affiliateUrl = await pollJob(body.job_id);
-        setBannerState(banner, 'done', affiliateUrl);
+        if (status === 401 || body.error === 'login_required') {
+          setBannerState(banner, 'default', 'Entre no MinhaOferta para gerar seu link com cashback.', '', true);
+        } else {
+          const affiliateUrl = await pollJob(body.job_id);
+          currentAffiliateUrl = affiliateUrl;
+          setBannerState(banner, 'done', 'Link gerado com sucesso.', '');
+        }
       } catch (err) {
-        setBannerState(banner, 'error', err?.message === 'timeout' ? 'Seu link ainda está em processamento. Veja no histórico.' : 'Não foi possível conectar ao MinhaOferta agora.');
-      }
+        const timeout = err?.message === 'timeout';
+        setBannerState(banner, 'default', timeout ? 'Seu link ainda está sendo processado.' : 'Não foi possível conectar ao MinhaOferta agora.', timeout ? 'Você pode acompanhar pelo histórico.' : 'Verifique sua conexão e tente novamente.');
+      } finally { isGenerating = false; }
     });
   }
 
-  function createBanner() { const banner = document.createElement('aside'); banner.id = BANNER_ID; banner.className = 'mo-banner is-default'; banner.innerHTML = '<button type="button" class="mo-banner-close" aria-label="Fechar banner">×</button><strong class="mo-banner-title">MinhaOferta</strong><p class="mo-banner-text"></p><p class="mo-banner-subtext"></p><div class="mo-banner-actions"></div>'; banner.querySelector('.mo-banner-close')?.addEventListener('click', () => banner.remove()); setBannerState(banner, 'default'); return banner; }
-  function ensureBanner() { if (!document.getElementById(BANNER_ID)) document.body.appendChild(createBanner()); }
-  function removeBanner() { document.getElementById(BANNER_ID)?.remove(); }
+  function createBanner() {
+    const banner = document.createElement('aside');
+    banner.id = BANNER_ID;
+    banner.className = 'mo-banner';
+    banner.innerHTML = '<button type="button" class="mo-banner-close" aria-label="Fechar banner">×</button><strong class="mo-banner-title">MinhaOferta</strong><p class="mo-banner-text"></p><p class="mo-banner-subtext"></p><div class="mo-banner-actions"></div>';
+    banner.querySelector('.mo-banner-close')?.addEventListener('click', async () => { await rememberBannerClosed(window.location.href); banner.remove(); });
+    setBannerState(banner, 'default', 'Produto com cashback disponível.', 'Gere seu link antes de comprar para participar do cashback.');
+    return banner;
+  }
 
   async function updateBannerPreview() {
     const banner = document.getElementById(BANNER_ID);
-    if (!banner || previewRequestedForUrl === window.location.href) return;
-    previewRequestedForUrl = window.location.href;
+    const currentUrl = normalizeUrl(window.location.href);
+    if (!banner || previewRequestedForUrl === currentUrl) return;
+    previewRequestedForUrl = currentUrl;
     try {
-      const payload = { url: window.location.href, price: detectPriceFromPage() };
-      const { body } = await fetchJson('/api/extension/product-preview', { method: 'POST', body: JSON.stringify(payload) });
-      setBannerState(banner, 'default', body?.estimated_cashback_label || 'Cashback disponível neste produto.');
-    } catch (_) {
-      setBannerState(banner, 'default', 'Cashback disponível neste produto.');
-    }
+      const { body } = await fetchJson('/api/extension/product-preview', { method: 'POST', body: JSON.stringify({ url: currentUrl }) });
+      if (body?.estimated_cashback_label) {
+        setBannerState(banner, 'default', body.estimated_cashback_label, 'Valor estimado. O cashback final depende da confirmação da compra.');
+      }
+    } catch (_) {}
   }
 
-  function validateAndRender() { if (window.location.href === lastValidatedUrl && document.getElementById(BANNER_ID)) return; lastValidatedUrl = window.location.href; previewRequestedForUrl = ''; const c = classifyCurrentPage(); if (c.isMercadoLivre && c.isProductPage) { ensureBanner(); updateBannerPreview(); } else removeBanner(); }
-  validateAndRender(); window.setTimeout(validateAndRender, 1000); window.setTimeout(validateAndRender, 2000);
+  async function validateAndRender(force = false) {
+    const currentUrl = normalizeUrl(window.location.href);
+    if (!force && currentUrl === lastUrl) return;
+    lastUrl = currentUrl;
+    previewRequestedForUrl = '';
+    removeBanner();
+    const c = classifyCurrentPage();
+    if (!c.isMercadoLivre || !c.isProductPage) return;
+    if (await wasBannerClosedRecently(currentUrl)) return;
+    document.body.appendChild(createBanner());
+    updateBannerPreview();
+  }
+
+  const rawPush = history.pushState;
+  history.pushState = function (...args) { rawPush.apply(this, args); setTimeout(() => validateAndRender(true), 250); };
+  const rawReplace = history.replaceState;
+  history.replaceState = function (...args) { rawReplace.apply(this, args); setTimeout(() => validateAndRender(true), 250); };
+  window.addEventListener('popstate', () => setTimeout(() => validateAndRender(true), 250));
+  setInterval(() => validateAndRender(false), CHECK_URL_INTERVAL_MS);
+  validateAndRender(true);
 })();

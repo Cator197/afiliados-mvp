@@ -135,3 +135,14 @@ O backend agora consulta regras de cashback cadastradas no banco para montar o *
 - Essas regras valem **somente** para estimativa exibida na extensão.
 - A extensão não calcula cashback oficial e não altera fluxo financeiro.
 - A geração de link do PR 6 continua igual.
+
+## PR 9 — UX, persistência e rastreabilidade
+
+- Mensagens do popup e banner foram padronizadas para estados claros (página incompatível, não-produto, login, geração, sucesso, timeout e erro de conexão).
+- Fechamento do banner agora persiste por URL (24h) com `chrome.storage.local`, sem guardar dados sensíveis.
+- Navegação dinâmica no Mercado Livre passou a detectar troca de URL (`pushState`, `replaceState`, `popstate` e intervalo leve), removendo/recriando banner sem duplicação.
+- Foi adicionada proteção contra múltiplos cliques durante geração no popup e no banner.
+- Backend registra `source` (`site`/`extension`) em jobs e links gerados para rastreabilidade operacional.
+- Admin de links ganhou visualização/filtro por origem.
+- Logs simples de auditoria foram adicionados para preview, geração, rejeições e consulta de job da extensão.
+- Nenhum impacto no worker, metadata_worker, confirmação de compra ou cálculo financeiro oficial de cashback.

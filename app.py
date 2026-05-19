@@ -117,7 +117,7 @@ from repositories.password_reset_attempts_repo import (
     create_password_reset_attempt,
 )
 from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_usuarios_email_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table, ensure_password_reset_tokens_table, ensure_password_reset_attempts_table, ensure_worker_diagnostics_table
-from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns, ensure_cashback_rules_default
+from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns, ensure_cashback_rules_default, ensure_jobs_source_column, ensure_links_source_column
 from services.extension_service import build_extension_status_response, build_product_preview
 from services.extension_service import validate_extension_url, detect_mercadolivre_product_page
 from services.platform_utils import (
@@ -194,7 +194,9 @@ ensure_usuarios_password_column()
 ensure_usuarios_email_column()
 ensure_jobs_worker_columns()
 ensure_jobs_platform_column()
+ensure_jobs_source_column()
 ensure_links_platform_column()
+ensure_links_source_column()
 ensure_links_metadata_columns()
 ensure_worker_heartbeats_table()
 ensure_worker_diagnostics_table()
@@ -696,6 +698,7 @@ def admin_links():
     codigo_usuario = request.args.get("codigo_usuario", "").strip() or None
     plataforma = request.args.get("plataforma", "").strip() or None
     descricao = request.args.get("descricao", "").strip() or request.args.get("q", "").strip() or None
+    source = request.args.get("source", "").strip() or None
     page = parse_positive_int(request.args.get("page"), 1)
     limit = parse_positive_int(request.args.get("limit"), 20)
 
@@ -704,6 +707,7 @@ def admin_links():
         codigo_usuario=codigo_usuario,
         plataforma=plataforma,
         descricao=descricao,
+        source=source,
         page=page,
         limit=limit,
     )
@@ -732,6 +736,7 @@ def admin_links():
             "codigo_usuario": codigo_usuario or "",
             "plataforma": plataforma or "",
             "descricao": descricao or "",
+            "source": source or "",
         },
         email_status={
             "enabled": EMAIL_ENABLED,
@@ -1341,6 +1346,7 @@ def extension_status():
 @app.route("/api/extension/product-preview", methods=["POST"])
 def extension_product_preview():
     data = request.get_json(silent=True) or {}
+    app.logger.info("[EXTENSION] product-preview endpoint=%s source=extension", request.path)
     raw_url = (data.get("url") or "").strip()
     if not raw_url:
         return jsonify({"ok": False, "erro": "URL é obrigatória."}), 400
@@ -1355,7 +1361,8 @@ def extension_product_preview():
     )
 
 
-def create_link_job_for_user(usuario_id: int, url: str):
+def create_link_job_for_user(usuario_id: int, url: str, source: str = "site"):
+    source = source if source in ("site", "extension") else "site"
     plataforma = detect_platform_from_url(url)
     if not plataforma or plataforma != PLATFORM_MERCADOLIVRE:
         return None
@@ -1368,8 +1375,9 @@ def create_link_job_for_user(usuario_id: int, url: str):
         plataforma=plataforma,
         status=JOB_STATUS_NA_FILA,
         criado_em=now_str(),
+        source=source,
     )
-    return {"job_id": job_id, "status": JOB_STATUS_NA_FILA, "plataforma": plataforma}
+    return {"job_id": job_id, "status": JOB_STATUS_NA_FILA, "plataforma": plataforma, "source": source}
 
 
 @app.route("/api/extension/generate-link", methods=["POST"])
@@ -1380,6 +1388,7 @@ def extension_generate_link():
         usuario_id = session.get("user_id")
         usuario = get_user_by_id(usuario_id) if usuario_id else None
     if not usuario:
+        app.logger.info("[EXTENSION] generate-link bloqueado endpoint=%s source=extension motivo=login_required", request.path)
         return jsonify({
             "success": False,
             "error": "login_required",
@@ -1398,6 +1407,7 @@ def extension_generate_link():
 
     is_valid, _, parsed = validate_extension_url(raw_url)
     if not is_valid:
+        app.logger.warning("[EXTENSION] generate-link rejeitado endpoint=%s source=extension user_id=%s motivo=invalid_url", request.path, usuario["id"])
         return jsonify({
             "success": False,
             "error": "invalid_url",
@@ -1405,13 +1415,14 @@ def extension_generate_link():
         }), 400
 
     if not detect_mercadolivre_product_page(parsed):
+        app.logger.warning("[EXTENSION] generate-link rejeitado endpoint=%s source=extension user_id=%s motivo=not_product_page", request.path, usuario["id"])
         return jsonify({
             "success": False,
             "error": "not_product_page",
             "message": "Acesse uma página de produto do Mercado Livre para gerar o link com cashback.",
         }), 400
 
-    job = create_link_job_for_user(usuario["id"], raw_url)
+    job = create_link_job_for_user(usuario["id"], raw_url, source="extension")
     if not job:
         return jsonify({
             "success": False,
@@ -1443,6 +1454,7 @@ def extension_get_job(job_id):
             "login_url": url_for("pagina_inicial", _external=True),
         }), 401
 
+    app.logger.info("[EXTENSION] job-status endpoint=%s source=extension user_id=%s job_id=%s", request.path, usuario["id"], job_id)
     job = get_job_by_id(job_id)
     if not job or job["usuario_id"] != usuario["id"]:
         return jsonify({
@@ -1776,7 +1788,7 @@ def solicitar_link():
             "erro": "Usuário não encontrado."
         }), 404
 
-    job = create_link_job_for_user(usuario["id"], url)
+    job = create_link_job_for_user(usuario["id"], url, source="site")
     job_id = job["job_id"]
     app.logger.info("[JOB %s] Job persistido com status inicial '%s'.", job_id, job["status"])
 
@@ -1932,6 +1944,7 @@ def worker_job_success(job_id):
         url_afiliado=url_afiliado,
         status=LINK_STATUS_AGUARDANDO_VERIFICACAO,
         percentual_cashback=CASHBACK_PERCENTUAL_PADRAO,
+        source=(job["source"] if "source" in job.keys() and job["source"] else "site"),
         criado_em=criado_em,
         atualizado_em=criado_em,
     )

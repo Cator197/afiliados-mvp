@@ -22,3 +22,7 @@ A tabela `cashback_rules` controla o percentual **estimado** exibido no preview 
 
 ## Importante
 Essas regras são usadas apenas no preview estimado da extensão. Não confirmam compra, não pagam cashback e não substituem validação administrativa.
+
+## PR 9 — Extensão Chrome (UX e rastreabilidade)
+
+Este PR melhora UX da extensão e rastreabilidade operacional (`source=extension`) sem alterar regras financeiras oficiais, cálculo/pagamento de cashback, worker ou metadata worker.

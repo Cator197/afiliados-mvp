@@ -5,7 +5,7 @@ def create_link_gerado(usuario_id, job_id, url_original, plataforma, url_afiliad
                        status, percentual_cashback, criado_em, atualizado_em,
                        descricao_item=None, foto_item_url=None, valor_produto=None,
                        percentual_comissao=None, metadados_status="pendente",
-                       metadados_erro=None, metadados_atualizado_em=None):
+                       metadados_erro=None, metadados_atualizado_em=None, source="site"):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -13,9 +13,9 @@ def create_link_gerado(usuario_id, job_id, url_original, plataforma, url_afiliad
         INSERT INTO links_gerados (
             usuario_id, job_id, url_original, plataforma, url_afiliado, status,
             percentual_cashback, descricao_item, foto_item_url, valor_produto, percentual_comissao,
-            metadados_status, metadados_erro, metadados_atualizado_em, criado_em, atualizado_em
+            metadados_status, metadados_erro, metadados_atualizado_em, criado_em, atualizado_em, source
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         usuario_id,
         job_id,
@@ -32,7 +32,8 @@ def create_link_gerado(usuario_id, job_id, url_original, plataforma, url_afiliad
         metadados_erro,
         metadados_atualizado_em,
         criado_em,
-        atualizado_em
+        atualizado_em,
+        source
     ))
 
     conn.commit()
@@ -71,7 +72,7 @@ def get_link_by_id(link_id):
     return row
 
 
-def get_all_links(status=None, codigo_usuario=None, plataforma=None, descricao=None, page=1, limit=20):
+def get_all_links(status=None, codigo_usuario=None, plataforma=None, descricao=None, source=None, page=1, limit=20):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -97,6 +98,9 @@ def get_all_links(status=None, codigo_usuario=None, plataforma=None, descricao=N
     if descricao:
         base_query += " AND LOWER(COALESCE(lg.descricao_item, '')) LIKE ?"
         params.append(f"%{descricao.lower()}%")
+    if source:
+        base_query += " AND COALESCE(lg.source, 'site') = ?"
+        params.append(source)
 
     cursor.execute(f"SELECT COUNT(*) AS total {base_query}", tuple(params))
     total = cursor.fetchone()["total"]

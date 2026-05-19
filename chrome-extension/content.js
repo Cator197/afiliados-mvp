@@ -1,5 +1,6 @@
 (function initMinhaOfertaBanner() {
   const BANNER_ID = 'mo-cashback-banner';
+  const SIMULATED_DELAY_MS = 1400;
   let lastValidatedUrl = '';
 
   function classifyCurrentPage() {
@@ -48,31 +49,74 @@
     };
   }
 
+  function setBannerState(banner, state) {
+    const title = banner.querySelector('.mo-banner-title');
+    const text = banner.querySelector('.mo-banner-text');
+    const subtext = banner.querySelector('.mo-banner-subtext');
+    const actions = banner.querySelector('.mo-banner-actions');
+
+    banner.classList.remove('is-default', 'is-loading', 'is-success');
+
+    if (state === 'loading') {
+      banner.classList.add('is-loading');
+      title.textContent = 'MinhaOferta';
+      text.textContent = 'Preparando seu link com cashback...';
+      subtext.textContent = 'Essa etapa ainda é uma simulação local da extensão.';
+      actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary mo-btn-disabled" disabled>Preparando...</button>';
+      return;
+    }
+
+    if (state === 'success') {
+      banner.classList.add('is-success');
+      title.textContent = 'MinhaOferta';
+      text.textContent = 'Fluxo da extensão pronto.';
+      subtext.textContent = 'No próximo PR, este botão será conectado ao backend do MinhaOferta.';
+      actions.innerHTML = `
+        <button type="button" class="mo-btn mo-btn-primary" data-action="open-site">Abrir MinhaOferta</button>
+        <button type="button" class="mo-btn mo-btn-secondary" data-action="close-banner">Fechar</button>
+      `;
+      actions.querySelector('[data-action="open-site"]')?.addEventListener('click', () => {
+        window.open('https://minhaoferta.com', '_blank', 'noopener,noreferrer');
+      });
+      actions.querySelector('[data-action="close-banner"]')?.addEventListener('click', () => {
+        banner.remove();
+      });
+      return;
+    }
+
+    banner.classList.add('is-default');
+    title.textContent = 'MinhaOferta';
+    text.textContent = 'Produto com cashback disponível.';
+    subtext.textContent = 'Gere seu link antes de comprar para participar do cashback.';
+    actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary" data-action="simulate">Gerar link com cashback</button>';
+    actions.querySelector('[data-action="simulate"]')?.addEventListener('click', () => {
+      setBannerState(banner, 'loading');
+      window.setTimeout(() => {
+        setBannerState(banner, 'success');
+      }, SIMULATED_DELAY_MS);
+    });
+  }
+
   function createBanner() {
     const banner = document.createElement('aside');
     banner.id = BANNER_ID;
-    banner.className = 'mo-banner';
+    banner.className = 'mo-banner is-default';
     banner.setAttribute('role', 'complementary');
     banner.setAttribute('aria-label', 'Banner MinhaOferta');
 
     banner.innerHTML = `
       <button type="button" class="mo-banner-close" aria-label="Fechar banner">×</button>
-      <strong class="mo-banner-title">MinhaOferta</strong>
-      <p class="mo-banner-text">Produto com cashback disponível.</p>
-      <button type="button" class="mo-banner-action">Gerar em breve</button>
+      <strong class="mo-banner-title"></strong>
+      <p class="mo-banner-text"></p>
+      <p class="mo-banner-subtext"></p>
+      <div class="mo-banner-actions"></div>
     `;
 
-    const closeButton = banner.querySelector('.mo-banner-close');
-    const actionButton = banner.querySelector('.mo-banner-action');
-
-    closeButton?.addEventListener('click', () => {
+    banner.querySelector('.mo-banner-close')?.addEventListener('click', () => {
       banner.remove();
     });
 
-    actionButton?.addEventListener('click', () => {
-      // Intencionalmente sem integração nesta fase (PR 3).
-    });
-
+    setBannerState(banner, 'default');
     return banner;
   }
 

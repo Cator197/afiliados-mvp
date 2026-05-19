@@ -57,3 +57,49 @@ Neste PR, a extensão evolui a UX local para o fluxo de geração de link, **sem
 3. Clicar em “Gerar link com cashback”.
 4. Confirmar estado carregando.
 5. Confirmar sucesso simulado.
+
+## PR 5 — Endpoints de status e preview
+
+Este PR adiciona endpoints backend para a extensão:
+
+- `GET /api/extension/status`: verifica se existe sessão ativa de usuário no MinhaOferta.
+- `POST /api/extension/product-preview`: valida URL enviada pela extensão e retorna preview leve.
+
+Escopo atual:
+
+- ainda não há geração real de link;
+- ainda não há criação de job;
+- ainda não há chamada de worker;
+- cashback retornado é apenas estimado e provisório (preview visual).
+
+### Exemplos com curl
+
+Teste status:
+
+```bash
+curl -i https://minhaoferta.com/api/extension/status
+```
+
+Teste preview URL inválida:
+
+```bash
+curl -i -X POST https://minhaoferta.com/api/extension/product-preview \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"https://google.com\"}"
+```
+
+Teste preview Mercado Livre home:
+
+```bash
+curl -i -X POST https://minhaoferta.com/api/extension/product-preview \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"https://www.mercadolivre.com.br\"}"
+```
+
+Teste preview produto Mercado Livre:
+
+```bash
+curl -i -X POST https://minhaoferta.com/api/extension/product-preview \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"COLE_AQUI_UMA_URL_REAL_DE_PRODUTO\"}"
+```

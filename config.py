@@ -47,6 +47,13 @@ def _env_path(name: str, default: Path) -> Path:
     return Path(_env_str(name, str(default))).expanduser()
 
 
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(_env_str(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
 APP_ENV = (_env_str("APP_ENV") or _env_str("FLASK_ENV") or _env_str("ENV") or "development").lower()
 IS_PRODUCTION = APP_ENV in {"production", "prod"}
 
@@ -81,6 +88,12 @@ ADMIN_DEFAULT_USERNAME = _env_str("ADMIN_DEFAULT_USERNAME")
 ADMIN_DEFAULT_PASSWORD = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
 
 CASHBACK_PERCENTUAL_PADRAO = 50.0
+
+DEFAULT_MERCADOLIVRE_CASHBACK_PERCENT = 3.0
+MERCADOLIVRE_DEFAULT_CASHBACK_PERCENT = min(
+    max(_env_float("MERCADOLIVRE_DEFAULT_CASHBACK_PERCENT", DEFAULT_MERCADOLIVRE_CASHBACK_PERCENT), 0.0),
+    20.0,
+)
 
 JOB_STATUS_NA_FILA = "na_fila"
 JOB_STATUS_PROCESSANDO = "processando"

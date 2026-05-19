@@ -69,6 +69,7 @@ from repositories.links_repo import (
     create_link_gerado,
     get_user_history_summary,
 )
+from database import get_connection
 from repositories.admin_repo import validate_admin_login
 from repositories.worker_status_repo import upsert_worker_heartbeat, get_worker_status
 from repositories.worker_diagnostics_repo import (
@@ -118,6 +119,7 @@ from repositories.password_reset_attempts_repo import (
 from init_db import ensure_jobs_worker_columns, ensure_usuarios_password_column, ensure_usuarios_email_column, ensure_worker_heartbeats_table, ensure_cadastro_solicitacoes_table, ensure_password_reset_requests_table, ensure_password_reset_tokens_table, ensure_password_reset_attempts_table, ensure_worker_diagnostics_table
 from init_db import ensure_jobs_platform_column, ensure_links_platform_column, ensure_links_metadata_columns
 from services.extension_service import build_extension_status_response, build_product_preview
+from services.extension_service import validate_extension_url, detect_mercadolivre_product_page
 from services.platform_utils import (
     PLATFORM_MERCADOLIVRE,
     PLATFORM_SHOPEE,
@@ -1260,6 +1262,138 @@ def extension_product_preview():
 
     return jsonify(build_product_preview(raw_url))
 
+
+def create_link_job_for_user(usuario_id: int, url: str):
+    plataforma = detect_platform_from_url(url)
+    if not plataforma or plataforma != PLATFORM_MERCADOLIVRE:
+        return None
+
+    job_id = str(uuid.uuid4())
+    create_job(
+        job_id=job_id,
+        usuario_id=usuario_id,
+        url_original=url,
+        plataforma=plataforma,
+        status=JOB_STATUS_NA_FILA,
+        criado_em=now_str(),
+    )
+    return {"job_id": job_id, "status": JOB_STATUS_NA_FILA, "plataforma": plataforma}
+
+
+@app.route("/api/extension/generate-link", methods=["POST"])
+def extension_generate_link():
+    if not session.get("user_logged_in"):
+        usuario = None
+    else:
+        usuario_id = session.get("user_id")
+        usuario = get_user_by_id(usuario_id) if usuario_id else None
+    if not usuario:
+        return jsonify({
+            "success": False,
+            "error": "login_required",
+            "message": "Entre no MinhaOferta para gerar seu link com cashback.",
+            "login_url": url_for("pagina_inicial", _external=True),
+        }), 401
+
+    data = request.get_json(silent=True) or {}
+    raw_url = (data.get("url") or "").strip()
+    if not raw_url:
+        return jsonify({
+            "success": False,
+            "error": "invalid_url",
+            "message": "URL inválida ou incompatível.",
+        }), 400
+
+    is_valid, _, parsed = validate_extension_url(raw_url)
+    if not is_valid:
+        return jsonify({
+            "success": False,
+            "error": "invalid_url",
+            "message": "URL inválida ou incompatível.",
+        }), 400
+
+    if not detect_mercadolivre_product_page(parsed):
+        return jsonify({
+            "success": False,
+            "error": "not_product_page",
+            "message": "Acesse uma página de produto do Mercado Livre para gerar o link com cashback.",
+        }), 400
+
+    job = create_link_job_for_user(usuario["id"], raw_url)
+    if not job:
+        return jsonify({
+            "success": False,
+            "error": "invalid_url",
+            "message": "URL inválida ou incompatível.",
+        }), 400
+
+    return jsonify({
+        "success": True,
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "message": "Link com cashback solicitado com sucesso.",
+        "next_poll_url": f"/api/extension/jobs/{job['job_id']}",
+    }), 201
+
+
+@app.route("/api/extension/jobs/<job_id>", methods=["GET"])
+def extension_get_job(job_id):
+    if not session.get("user_logged_in"):
+        usuario = None
+    else:
+        usuario_id = session.get("user_id")
+        usuario = get_user_by_id(usuario_id) if usuario_id else None
+    if not usuario:
+        return jsonify({
+            "success": False,
+            "error": "login_required",
+            "message": "Entre no MinhaOferta para gerar seu link com cashback.",
+            "login_url": url_for("pagina_inicial", _external=True),
+        }), 401
+
+    job = get_job_by_id(job_id)
+    if not job or job["usuario_id"] != usuario["id"]:
+        return jsonify({
+            "success": False,
+            "error": "not_found",
+            "message": "Job não encontrado.",
+        }), 404
+
+    affiliate_url = job["resultado_link"]
+    if not affiliate_url:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT url_afiliado FROM links_gerados WHERE job_id = ? LIMIT 1", (job_id,))
+        row = cursor.fetchone()
+        conn.close()
+        affiliate_url = row["url_afiliado"] if row else None
+
+    if job["status"] == JOB_STATUS_ERRO:
+        return jsonify({
+            "success": False,
+            "job_id": job["id"],
+            "status": "error",
+            "message": "Não foi possível gerar o link agora.",
+            "affiliate_url": None,
+        })
+
+    if job["status"] == JOB_STATUS_CONCLUIDO:
+        return jsonify({
+            "success": True,
+            "job_id": job["id"],
+            "status": "success",
+            "message": "Link gerado com sucesso.",
+            "affiliate_url": affiliate_url,
+        })
+
+    return jsonify({
+        "success": True,
+        "job_id": job["id"],
+        "status": job["status"],
+        "message": "Seu link está sendo processado.",
+        "affiliate_url": None,
+    })
+
 @app.route("/api/login", methods=["POST"])
 def login_usuario():
     blocked_response = rate_limit_response("api_login", USER_LOGIN_RATE_LIMIT_MAX_ATTEMPTS)
@@ -1550,23 +1684,9 @@ def solicitar_link():
             "erro": "Usuário não encontrado."
         }), 404
 
-    job_id = str(uuid.uuid4())
-    app.logger.info(
-        "[JOB %s] Recebida solicitação de geração de link | usuario=%s | url=%s",
-        job_id,
-        usuario["codigo_usuario"],
-        url,
-    )
-
-    create_job(
-        job_id=job_id,
-        usuario_id=usuario["id"],
-        url_original=url,
-        plataforma=plataforma,
-        status=JOB_STATUS_NA_FILA,
-        criado_em=now_str()
-    )
-    app.logger.info("[JOB %s] Job persistido com status inicial '%s'.", job_id, JOB_STATUS_NA_FILA)
+    job = create_link_job_for_user(usuario["id"], url)
+    job_id = job["job_id"]
+    app.logger.info("[JOB %s] Job persistido com status inicial '%s'.", job_id, job["status"])
 
     app.logger.info(
         "[JOB %s] Job aguardando claim do worker remoto em /api/worker/jobs/claim.",
@@ -1576,7 +1696,7 @@ def solicitar_link():
     return jsonify({
         "ok": True,
         "job_id": job_id,
-        "status": JOB_STATUS_NA_FILA,
+        "status": job["status"],
         "plataforma": plataforma,
         "plataforma_label": get_platform_label(plataforma),
     })

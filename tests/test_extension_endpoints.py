@@ -5,6 +5,7 @@ from pathlib import Path
 import config
 from database import get_connection
 from repositories.usuarios_repo import hash_user_password
+from config import JOB_STATUS_NA_FILA
 
 
 class ExtensionEndpointsTests(unittest.TestCase):
@@ -39,6 +40,8 @@ class ExtensionEndpointsTests(unittest.TestCase):
         self.client = self.app.test_client()
         conn = get_connection()
         cursor = conn.cursor()
+        cursor.execute("DELETE FROM jobs")
+        cursor.execute("DELETE FROM links_gerados")
         cursor.execute("DELETE FROM usuarios")
         cursor.execute(
             """
@@ -99,6 +102,77 @@ class ExtensionEndpointsTests(unittest.TestCase):
         response = self.client.post("/api/extension/product-preview", json={"url": "https://mercadolivre.com.br.fake.com/p/MLB123"})
         payload = response.get_json()
         self.assertFalse(payload["is_valid"])
+
+    def test_generate_link_requires_login(self):
+        response = self.client.post("/api/extension/generate-link", json={"url": "https://www.mercadolivre.com.br/p/MLB123"})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.get_json()["error"], "login_required")
+
+    def test_generate_link_invalid_url(self):
+        self._login()
+        response = self.client.post("/api/extension/generate-link", json={"url": "abc"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "invalid_url")
+
+    def test_generate_link_not_product_page(self):
+        self._login()
+        response = self.client.post("/api/extension/generate-link", json={"url": "https://www.mercadolivre.com.br"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "not_product_page")
+
+    def test_generate_link_creates_job(self):
+        self._login()
+        response = self.client.post("/api/extension/generate-link", json={"url": "https://www.mercadolivre.com.br/p/MLB123"})
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertTrue(payload["success"])
+        self.assertIn("job_id", payload)
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, resultado_link FROM jobs WHERE id = ?", (payload["job_id"],))
+        row = cursor.fetchone()
+        conn.close()
+        self.assertEqual(row["status"], JOB_STATUS_NA_FILA)
+        self.assertIsNone(row["resultado_link"])
+
+    def test_extension_job_get_requires_login(self):
+        response = self.client.get("/api/extension/jobs/nao-existe")
+        self.assertEqual(response.status_code, 401)
+
+    def test_extension_job_get_not_found_for_other_user(self):
+        self._login()
+        create = self.client.post("/api/extension/generate-link", json={"url": "https://www.mercadolivre.com.br/p/MLB123"})
+        job_id = create.get_json()["job_id"]
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO usuarios (codigo_usuario, nome, password_hash, ativo, criado_em) VALUES (?, ?, ?, ?, ?)",
+            ("OUTRO1", "Outro", hash_user_password("senha456"), 1, "2026-01-01 00:00:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        other_client = self.app.test_client()
+        other_client.post("/api/login", json={"codigo_usuario": "OUTRO1", "senha": "senha456"})
+        response = other_client.get(f"/api/extension/jobs/{job_id}")
+        self.assertEqual(response.status_code, 404)
+
+    def test_extension_job_get_success_status(self):
+        self._login()
+        create = self.client.post("/api/extension/generate-link", json={"url": "https://www.mercadolivre.com.br/p/MLB123"})
+        job_id = create.get_json()["job_id"]
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE jobs SET status = 'concluido', resultado_link = ? WHERE id = ?", ("https://afiliado.exemplo", job_id))
+        conn.commit()
+        conn.close()
+        response = self.client.get(f"/api/extension/jobs/{job_id}")
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["affiliate_url"], "https://afiliado.exemplo")
 
 
 if __name__ == "__main__":

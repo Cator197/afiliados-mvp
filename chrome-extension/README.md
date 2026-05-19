@@ -103,3 +103,13 @@ curl -i -X POST https://minhaoferta.com/api/extension/product-preview \
   -H "Content-Type: application/json" \
   -d "{\"url\":\"COLE_AQUI_UMA_URL_REAL_DE_PRODUTO\"}"
 ```
+
+## PR 6 — Geração real via extensão
+
+- `POST /api/extension/generate-link` cria um job real na fila atual do sistema.
+- `GET /api/extension/jobs/<job_id>` permite acompanhar o status do job.
+- A extensão só solicita geração após clique do usuário em “Gerar link com cashback”.
+- O worker atual continua responsável por gerar o link afiliado.
+- A extensão não chama worker diretamente.
+- A extensão não envia cashback/comissão oficial para o backend.
+- O polling da extensão é limitado (intervalo de ~2.5s, até 20 tentativas) para evitar abuso.

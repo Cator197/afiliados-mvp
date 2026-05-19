@@ -194,6 +194,18 @@ def ensure_jobs_platform_column():
     conn.close()
 
 
+def ensure_jobs_source_column():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(jobs)")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+    if "source" not in existing_columns:
+        cursor.execute("ALTER TABLE jobs ADD COLUMN source TEXT NOT NULL DEFAULT 'site'")
+    cursor.execute("UPDATE jobs SET source = 'site' WHERE source IS NULL OR TRIM(source) = ''")
+    conn.commit()
+    conn.close()
+
+
 def ensure_links_platform_column():
     conn = get_connection()
     cursor = conn.cursor()
@@ -214,6 +226,18 @@ def ensure_links_platform_column():
         """
     )
 
+    conn.commit()
+    conn.close()
+
+
+def ensure_links_source_column():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(links_gerados)")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+    if "source" not in existing_columns:
+        cursor.execute("ALTER TABLE links_gerados ADD COLUMN source TEXT NOT NULL DEFAULT 'site'")
+    cursor.execute("UPDATE links_gerados SET source = 'site' WHERE source IS NULL OR TRIM(source) = ''")
     conn.commit()
     conn.close()
 

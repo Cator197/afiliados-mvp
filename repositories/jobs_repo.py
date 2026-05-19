@@ -1,17 +1,17 @@
 from database import get_connection
 
 
-def create_job(job_id, usuario_id, url_original, plataforma, status, criado_em):
+def create_job(job_id, usuario_id, url_original, plataforma, status, criado_em, source="site"):
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
         INSERT INTO jobs (
-            id, usuario_id, url_original, plataforma, status, criado_em
+            id, usuario_id, url_original, plataforma, status, criado_em, source
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (
-        job_id, usuario_id, url_original, plataforma, status, criado_em
+        job_id, usuario_id, url_original, plataforma, status, criado_em, source
     ))
 
     conn.commit()

@@ -105,6 +105,14 @@
                         <option value="mercadolivre" {% if filtros.plataforma == 'mercadolivre' %}selected{% endif %}>Mercado Livre</option>
                     </select>
                 </div>
+                <div class="input-group no-margin">
+                    <label for="source">Filtrar por origem</label>
+                    <select id="source" name="source">
+                        <option value="">Todas</option>
+                        <option value="site" {% if filtros.source == 'site' %}selected{% endif %}>Site</option>
+                        <option value="extension" {% if filtros.source == 'extension' %}selected{% endif %}>Extensão</option>
+                    </select>
+                </div>
 
                 <div class="actions no-margin">
                     <input type="hidden" name="limit" value="{{ limit }}">
@@ -118,12 +126,12 @@
             <span class="small">Total: {{ total }} registros · Página {{ page }} de {{ total_pages }}</span>
             <div class="actions no-margin">
                 {% if has_prev %}
-                    <a class="btn" href="{{ url_for('admin_links', page=page-1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma, descricao=filtros.descricao) }}">Anterior</a>
+                    <a class="btn" href="{{ url_for('admin_links', page=page-1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma, descricao=filtros.descricao, source=filtros.source) }}">Anterior</a>
                 {% else %}
                     <button type="button" disabled>Anterior</button>
                 {% endif %}
                 {% if has_next %}
-                    <a class="btn" href="{{ url_for('admin_links', page=page+1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma, descricao=filtros.descricao) }}">Próxima</a>
+                    <a class="btn" href="{{ url_for('admin_links', page=page+1, limit=limit, status=filtros.status, codigo_usuario=filtros.codigo_usuario, plataforma=filtros.plataforma, descricao=filtros.descricao, source=filtros.source) }}">Próxima</a>
                 {% else %}
                     <button type="button" disabled>Próxima</button>
                 {% endif %}
@@ -140,6 +148,7 @@
                         <th>URL original</th>
                         <th>Link afiliado</th>
                         <th>Plataforma</th>
+                        <th>Origem</th>
                         <th>Status</th>
                         <th>Descrição do item</th>
                         <th>Foto do item</th>
@@ -184,6 +193,9 @@
                                         <span class="badge platform-badge {{ link.plataforma or 'nao_informado' }}">
                                             {{ platform_labels.get(link.plataforma, "Não informado") }}
                                         </span>
+                                    </td>
+                                    <td data-label="Origem">
+                                        <span class="badge">{{ 'Extensão' if link.source == 'extension' else 'Site' }}</span>
                                     </td>
                                     <td data-label="Status" class="col-status">
                                         <span class="badge status-badge {{ get_status_badge_class(link.status) }}" data-status="{{ link.status }}">{{ get_status_label(link.status, context="admin") }}</span>

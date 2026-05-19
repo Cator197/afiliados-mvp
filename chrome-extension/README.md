@@ -15,43 +15,45 @@ Base inicial da extensão para gerar links com cashback no Mercado Livre.
 7. Verificar se o banner aparece apenas em página de produto.
 8. Clicar no ícone da extensão e verificar o popup.
 
-## PR 3 — Detecção de produto
+## PR 4 — Fluxo visual de geração
 
-Agora a extensão:
+Neste PR, a extensão evolui a UX local para o fluxo de geração de link, **sem backend**:
 
-- diferencia página incompatível, Mercado Livre genérico e página de produto;
-- mostra banner automático somente quando a página parece ser de produto;
-- mantém verificação conservadora (em dúvida, considera não-produto);
-- revalida a classificação após carregamento e em mudanças dinâmicas de URL/DOM;
-- ainda não chama backend;
-- ainda não gera link.
+- o botão “Gerar link com cashback” aparece no banner e no popup;
+- ao clicar, a extensão entra em estado de carregamento simulado (1 a 2 segundos);
+- após o carregamento, mostra estado de sucesso simulado;
+- o popup exibe ações de abrir MinhaOferta e copiar link simulado;
+- ainda não existe chamada ao backend;
+- ainda não existe job real;
+- ainda não existe geração de link real.
 
 ## Testes manuais
 
-### Teste 1
-Abrir google.com.
+### Teste 1 — Página incompatível
+1. Abrir google.com.
+2. Clicar no ícone da extensão.
+3. Confirmar mensagem de página incompatível.
 
-**Esperado:** popup mostra página incompatível.
+### Teste 2 — Mercado Livre não produto
+1. Abrir a home ou busca do Mercado Livre.
+2. Confirmar que o banner não aparece.
+3. Confirmar que o popup informa que não parece produto.
 
-### Teste 2
-Abrir https://www.mercadolivre.com.br/
+### Teste 3 — Produto Mercado Livre
+1. Abrir página real de produto.
+2. Confirmar que o banner aparece.
+3. Confirmar que o botão “Gerar link com cashback” aparece.
 
-**Esperado:** popup mostra Mercado Livre, mas não produto.
-**Esperado:** banner não aparece.
+### Teste 4 — Fluxo simulado no banner
+1. Clicar em “Gerar link com cashback”.
+2. Confirmar estado carregando.
+3. Confirmar estado sucesso simulado.
+4. Clicar em “Abrir MinhaOferta”.
+5. Confirmar abertura de https://minhaoferta.com.
 
-### Teste 3
-Abrir uma busca no Mercado Livre.
-
-**Esperado:** popup mostra Mercado Livre, mas não produto.
-**Esperado:** banner não aparece.
-
-### Teste 4
-Abrir uma página real de produto no Mercado Livre.
-
-**Esperado:** popup mostra produto detectado.
-**Esperado:** banner aparece.
-
-### Teste 5
-Fechar o banner com X.
-
-**Esperado:** banner é removido.
+### Teste 5 — Fluxo simulado no popup
+1. Abrir produto Mercado Livre.
+2. Clicar no ícone da extensão.
+3. Clicar em “Gerar link com cashback”.
+4. Confirmar estado carregando.
+5. Confirmar sucesso simulado.

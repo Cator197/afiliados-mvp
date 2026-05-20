@@ -56,6 +56,37 @@
     throw new Error('timeout');
   }
 
+
+
+  function extractBreadcrumbContext() {
+    const selector = '#breadcrumb a.andes-breadcrumb__link, a.andes-breadcrumb__link';
+    const links = Array.from(document.querySelectorAll(selector));
+    const items = links
+      .map((link) => {
+        const text = (link.textContent || '').trim();
+        const title = (link.getAttribute('title') || '').trim();
+        const href = (link.getAttribute('href') || '').trim();
+        if (!text && !title && !href) return null;
+        let pathname = '';
+        try { pathname = href ? new URL(href, window.location.origin).pathname : ''; } catch (_) { pathname = ''; }
+        return { text, title, href, pathname };
+      })
+      .filter(Boolean);
+
+    const normalized = items.filter((item) => {
+      const label = (item.text || item.title || '').trim().toLowerCase();
+      return label && label !== 'voltar';
+    });
+
+    const category = normalized[0] || null;
+    return {
+      category_hint: category ? (category.text || category.title || '') : null,
+      category_path: category ? category.pathname || null : null,
+      breadcrumbs: normalized.map((item) => item.text || item.title || '').filter(Boolean),
+      breadcrumb_paths: normalized.map((item) => item.pathname || '').filter(Boolean),
+    };
+  }
+
   function removeBanner() { document.getElementById(BANNER_ID)?.remove(); }
 
   function setBannerState(banner, state, text = '', subtext = '') {
@@ -84,7 +115,7 @@
       isGenerating = true;
       setBannerState(banner, 'loading', 'Gerando seu link com cashback...', 'Isso pode levar alguns segundos.');
       try {
-        const { status, body } = await fetchJson('/api/extension/generate-link', { method: 'POST', body: JSON.stringify({ url: window.location.href }) });
+        const { status, body } = await fetchJson('/api/extension/generate-link', { method: 'POST', body: JSON.stringify({ url: window.location.href, ...extractBreadcrumbContext() }) });
         if (status === 401 || body.error === 'login_required') {
           setBannerState(banner, 'default', 'Entre no MinhaOferta para gerar seu link com cashback.', '', true);
         } else {
@@ -115,7 +146,7 @@
     if (!banner || previewRequestedForUrl === currentUrl) return;
     previewRequestedForUrl = currentUrl;
     try {
-      const { body } = await fetchJson('/api/extension/product-preview', { method: 'POST', body: JSON.stringify({ url: currentUrl }) });
+      const { body } = await fetchJson('/api/extension/product-preview', { method: 'POST', body: JSON.stringify({ url: currentUrl, ...extractBreadcrumbContext() }) });
       if (body?.estimated_cashback_label) {
         setBannerState(banner, 'default', body.estimated_cashback_label, 'Valor estimado. O cashback final depende da confirmação da compra.');
       }

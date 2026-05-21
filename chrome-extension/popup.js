@@ -2,7 +2,6 @@ const statusBoxElement = document.getElementById('popup-status-box');
 const statusElement = document.getElementById('status-text');
 const detailsElement = document.getElementById('status-details');
 const noteElement = document.getElementById('status-note');
-const urlElement = document.getElementById('current-url');
 const popupLoadingElement = document.getElementById('popup-loading');
 const generateButton = document.getElementById('simulate-btn');
 const openLinkButton = document.getElementById('open-link-btn');
@@ -19,7 +18,6 @@ let generatedAffiliateLink = '';
 let isGenerating = false;
 let extensionStatus = null;
 
-const summarizeUrl = (u) => (!u ? '' : u.length <= 72 ? u : `${u.slice(0, 69)}...`);
 const setStatusVariant = (v) => { statusBoxElement.classList.remove('status-neutral', 'status-success', 'status-loading', 'status-error'); statusBoxElement.classList.add(v); };
 const safeJson = async (response) => {
   try { return await response.json(); } catch { return null; }
@@ -106,10 +104,12 @@ function setPopupLoading(visible, label = 'Processando') {
 function renderReadyLinkState(linkData) {
   generatedAffiliateLink = linkData.affiliate_url;
   setStatusVariant('status-success');
-  statusElement.textContent = 'Link com cashback pronto.';
-  detailsElement.textContent = 'Abra o link gerado para continuar sua compra.';
+  statusElement.textContent = 'Você já tem link de cashback para esse produto.';
+  detailsElement.textContent = 'Acesse agora para continuar sua compra com cashback.';
   noteElement.textContent = linkData.estimated_cashback_label ? `Cashback estimado de até ${linkData.estimated_cashback_label}` : '';
   setPopupLoading(false);
+  openLinkButton.classList.remove('mo-btn-secondary');
+  openLinkButton.classList.add('mo-btn-primary');
   setActions({ openLink: true });
 }
 
@@ -193,9 +193,10 @@ function renderState(preview, statusPayload, pageUrl) {
     noteElement.textContent = '';
     generateButton.disabled = false;
     generateButton.textContent = 'Gerar link com cashback';
+    openLinkButton.classList.remove('mo-btn-primary');
+    openLinkButton.classList.add('mo-btn-secondary');
     setActions({ generate: true, login: false });
   }
-  urlElement.textContent = summarizeUrl(pageUrl || 'URL não disponível');
 }
 
 async function validateCurrentTab() {
@@ -205,7 +206,6 @@ async function validateCurrentTab() {
     await cleanupExpiredGeneratedLinks();
     const stored = await getStoredGeneratedLinkForUrl(url);
     if (stored?.entry?.affiliate_url) {
-      urlElement.textContent = summarizeUrl(url || 'URL não disponível');
       renderReadyLinkState(stored.entry);
       return;
     }

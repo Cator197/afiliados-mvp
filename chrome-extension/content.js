@@ -246,8 +246,9 @@
       if (existing?.affiliate_url) {
         currentAffiliateUrl = existing.affiliate_url;
         setBannerState('success', {
-          text: 'Link com cashback pronto',
-          subtext: 'Abra o link gerado para continuar sua compra.',
+          title: 'Link de cashback pronto',
+          text: 'Link de cashback pronto',
+          subtext: 'Você já tem link para esse produto.',
         });
         return;
       }
@@ -257,8 +258,9 @@
       currentAffiliateUrl = doneAffiliateUrl;
       await saveGeneratedLink(productUrl, { affiliate_url: doneAffiliateUrl, job_id: jobId });
       setBannerState('success', {
-        text: 'Link com cashback pronto',
-        subtext: 'Abra o link gerado para continuar sua compra.',
+        title: 'Link de cashback pronto',
+        text: 'Link de cashback pronto',
+        subtext: 'Você já tem link para esse produto.',
       });
     } catch (err) {
       if (err?.code === 'login_required') {
@@ -325,8 +327,9 @@
     if (stored?.affiliate_url) {
       currentAffiliateUrl = stored.affiliate_url;
       setBannerState('success', {
-        text: 'Link com cashback pronto',
-        subtext: 'Abra o link gerado para continuar sua compra.',
+        title: 'Link de cashback pronto',
+        text: 'Link de cashback pronto',
+        subtext: 'Você já tem link para esse produto.',
       });
       return;
     }

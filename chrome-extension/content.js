@@ -185,7 +185,7 @@
 
     if (state === 'loading') {
       banner.classList.add('is-loading');
-      actions.innerHTML = '<div class="mo-loading" aria-live="polite"><span class="mo-spinner" aria-hidden="true"></span><span class="mo-loading-label">Aguarde</span></div>';
+      actions.innerHTML = '<div class="mo-loading" aria-live="polite"><span class="mo-loading-label">Gerando link</span></div>'; 
       return;
     }
 
@@ -303,7 +303,7 @@
       const { body } = await fetchJson('/api/extension/product-preview', { method: 'POST', body: JSON.stringify({ url: currentUrl }) });
       if (body?.estimated_cashback_label) {
         setBannerState('initial', {
-          text: `Cashback estimado de até ${body.estimated_cashback_label}`,
+          text: body.estimated_cashback_label,
           subtext: 'Gere seu link antes de comprar.',
         });
       }

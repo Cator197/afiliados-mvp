@@ -79,8 +79,7 @@
 .mo-status-box.status-error { border-color: var(--mo-error-border); background: var(--mo-error-bg); }
 
 .mo-status { margin: 0; font-size: 13px; font-weight: 600; }
-.mo-status-details, .mo-status-note, .mo-url { margin: 8px 0 0; font-size: 12px; color: var(--mo-muted); }
-.mo-url { word-break: break-all; }
+.mo-status-details, .mo-status-note { margin: 8px 0 0; font-size: 12px; color: var(--mo-muted); }
 
 .mo-actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 12px; }
 

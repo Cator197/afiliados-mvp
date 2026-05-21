@@ -269,3 +269,14 @@ O backend agora consulta regras de cashback cadastradas no banco para montar o *
 - [ ] Testar worker parado/timeout.
 - [ ] Verificar console sem erros críticos.
 - [ ] Verificar que não há segredos no código.
+
+
+## PR 19 — Correções de estado e metadata
+
+- O spinner e o texto de processamento no popup/banner agora aparecem somente durante geração real do link (após clique do usuário e durante polling do job).
+- A URL técnica do produto não é mais exibida na interface principal do popup.
+- O estado de link já gerado ficou explícito no popup: “Você já tem link de cashback para esse produto.”
+- O botão “Abrir link” passou a ser o CTA principal em estados de link pronto/salvo.
+- Links gerados pela extensão continuam usando o mesmo pipeline de jobs e persistência do backend, com `source=extension` e metadados iniciando em `pendente` para consumo assíncrono do metadata_worker.
+- Não há exposição de dados sensíveis (cookies/tokens/senhas) na UI.
+- Cashback oficial, confirmação de compra e regras financeiras não foram alterados.

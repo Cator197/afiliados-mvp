@@ -175,6 +175,20 @@ class ExtensionEndpointsTests(unittest.TestCase):
         self.assertEqual(row["status"], JOB_STATUS_NA_FILA)
         self.assertIsNone(row["resultado_link"])
 
+
+    def test_generate_link_sets_source_extension(self):
+        self._login()
+        response = self.client.post("/api/extension/generate-link", json={"url": "https://www.mercadolivre.com.br/p/MLB123"})
+        self.assertEqual(response.status_code, 201)
+        job_id = response.get_json()["job_id"]
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT source FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        conn.close()
+        self.assertEqual(row["source"], "extension")
+
     def test_extension_job_get_requires_login(self):
         response = self.client.get("/api/extension/jobs/nao-existe")
         self.assertEqual(response.status_code, 401)

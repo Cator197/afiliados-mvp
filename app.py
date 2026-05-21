@@ -1936,6 +1936,7 @@ def worker_job_success(job_id):
     app.logger.info("[JOB %s] Success recebido do worker remoto.", job_id)
 
     criado_em = now_str()
+    source = (job["source"] if "source" in job.keys() and job["source"] else "site")
     create_link_gerado(
         usuario_id=job["usuario_id"],
         job_id=job_id,
@@ -1944,11 +1945,16 @@ def worker_job_success(job_id):
         url_afiliado=url_afiliado,
         status=LINK_STATUS_AGUARDANDO_VERIFICACAO,
         percentual_cashback=CASHBACK_PERCENTUAL_PADRAO,
-        source=(job["source"] if "source" in job.keys() and job["source"] else "site"),
+        source=source,
         criado_em=criado_em,
         atualizado_em=criado_em,
     )
-    app.logger.info("[JOB %s] Link afiliado persistido e job concluído.", job_id)
+    app.logger.info(
+        "[JOB %s] Link afiliado persistido e metadata enfileirado | source=%s user_id=%s",
+        job_id,
+        source,
+        job["usuario_id"],
+    )
 
     usuario = get_user_by_id(job["usuario_id"])
     notify_admin_new_link_pending({

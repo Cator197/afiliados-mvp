@@ -4,9 +4,7 @@ const detailsElement = document.getElementById('status-details');
 const noteElement = document.getElementById('status-note');
 const urlElement = document.getElementById('current-url');
 const generateButton = document.getElementById('simulate-btn');
-const copyLinkButton = document.getElementById('copy-link-btn');
 const openLinkButton = document.getElementById('open-link-btn');
-const historyButton = document.getElementById('history-btn');
 const openSiteButton = document.getElementById('open-site-btn');
 const BACKEND_BASE_URL = 'https://minhaoferta.com';
 const POLL_INTERVAL_MS = 2500;
@@ -14,7 +12,6 @@ const POLL_MAX_ATTEMPTS = 20;
 const GENERATED_LINKS_STORAGE_KEY = 'generatedLinks';
 const GENERATED_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 let currentPageState = { isMercadoLivre: false, isProductPage: false, url: '', loggedIn: false };
-let historyUrl = `${BACKEND_BASE_URL}/historico`;
 let generatedAffiliateLink = '';
 let isGenerating = false;
 
@@ -80,20 +77,18 @@ async function saveGeneratedLink(url, payload) {
   await chrome.storage.local.set({ [GENERATED_LINKS_STORAGE_KEY]: links });
 }
 
-function setActions({ generate=false, copy=false, openLink=false, history=false, login=false }) {
+function setActions({ generate=false, openLink=false, login=false }) {
   generateButton.hidden = !generate;
-  copyLinkButton.hidden = !copy;
   openLinkButton.hidden = !openLink;
-  historyButton.hidden = !history;
   openSiteButton.hidden = !login;
 }
 
 function renderReadyLinkState(linkData) {
   generatedAffiliateLink = linkData.affiliate_url;
   setStatusVariant('status-success');
-  statusElement.textContent = 'Link com cashback pronto.';
-  detailsElement.textContent = linkData.estimated_cashback_label || 'Use este link para concluir sua compra com cashback.';
-  noteElement.textContent = '';
+  statusElement.textContent = 'Link com cashback pronto';
+  detailsElement.textContent = 'Use este link para concluir sua compra com cashback.';
+  noteElement.textContent = linkData.estimated_cashback_label ? `Cashback estimado: até ${linkData.estimated_cashback_label}` : '';
   setActions({ openLink: true });
 }
 
@@ -117,7 +112,6 @@ async function pollJob(jobId) {
 
 function renderState(preview, statusPayload, pageUrl) {
   currentPageState = { isMercadoLivre: preview.platform === 'mercadolivre', isProductPage: !!preview.is_product_page, url: pageUrl, loggedIn: !!statusPayload?.logged_in };
-  historyUrl = statusPayload?.historico_url || `${BACKEND_BASE_URL}/historico`;
   if (!preview.is_valid) {
     setStatusVariant('status-error');
     statusElement.textContent = 'Esta página não é compatível com o MinhaOferta.';
@@ -194,7 +188,7 @@ async function startGenerateFlow() {
   } catch (err) {
     const code = err?.message;
     setStatusVariant('status-error');
-    setActions({ generate: true, history: code === 'timeout' });
+    setActions({ generate: true });
     if (code === 'login_required') {
       statusElement.textContent = 'Entre no MinhaOferta para gerar seu link com cashback.';
       detailsElement.textContent = 'Faça login e tente novamente.';
@@ -206,7 +200,7 @@ async function startGenerateFlow() {
       detailsElement.textContent = 'Abra um produto específico para gerar o link com cashback.';
     } else if (code === 'timeout') {
       statusElement.textContent = 'Seu link ainda está sendo processado.';
-      detailsElement.textContent = 'Você pode acompanhar pelo histórico.';
+      detailsElement.textContent = 'Aguarde alguns instantes e tente novamente.';
     } else {
       statusElement.textContent = 'Não foi possível conectar ao MinhaOferta agora.';
       detailsElement.textContent = 'Verifique sua conexão e tente novamente.';
@@ -219,8 +213,15 @@ async function startGenerateFlow() {
 }
 
 generateButton.addEventListener('click', startGenerateFlow);
-copyLinkButton.addEventListener('click', async () => { if (generatedAffiliateLink) await navigator.clipboard.writeText(generatedAffiliateLink); });
-openLinkButton.addEventListener('click', () => { if (generatedAffiliateLink) chrome.tabs.create({ url: generatedAffiliateLink }); });
-historyButton.addEventListener('click', () => chrome.tabs.create({ url: historyUrl }));
+openLinkButton.addEventListener('click', () => {
+  if (!generatedAffiliateLink) {
+    setStatusVariant('status-error');
+    statusElement.textContent = 'Não foi possível abrir o link gerado.';
+    detailsElement.textContent = 'Tente gerar o link novamente.';
+    noteElement.textContent = '';
+    return;
+  }
+  chrome.tabs.create({ url: generatedAffiliateLink });
+});
 openSiteButton.addEventListener('click', () => chrome.tabs.create({ url: BACKEND_BASE_URL }));
 validateCurrentTab();

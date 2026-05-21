@@ -195,3 +195,13 @@ O backend agora consulta regras de cashback cadastradas no banco para montar o *
 5. Clicar em “Abrir link” e confirmar abertura da `affiliate_url` em nova aba.
 6. Simular `created_at` antigo em `chrome.storage.local` e confirmar remoção de link expirado.
 7. Inspecionar `chrome.storage.local` e confirmar ausência de senha/token/cookie/dados sensíveis.
+
+## PR 14 — Estado final simplificado
+
+- Após gerar o link (ou recuperar link já salvo para a URL atual), popup e banner exibem estado final simplificado com CTA único **"Abrir link"**.
+- O botão **Copiar link** foi removido do estado final.
+- O botão **Ver histórico** não aparece mais na área principal do estado final.
+- O botão **Entrar** não aparece no estado final quando já existe `affiliate_url` válido.
+- A verificação da página continua automática no popup ao abrir.
+- Quando existe link salvo válido para a URL atual, a extensão mostra o estado pronto diretamente.
+- Quando existe link salvo válido para a URL atual, a extensão não cria novo job.

@@ -7,27 +7,29 @@ const generateButton = document.getElementById('simulate-btn');
 const copyLinkButton = document.getElementById('copy-link-btn');
 const openLinkButton = document.getElementById('open-link-btn');
 const historyButton = document.getElementById('history-btn');
-const checkButton = document.getElementById('check-page-btn');
 const openSiteButton = document.getElementById('open-site-btn');
 const BACKEND_BASE_URL = 'https://minhaoferta.com';
 const POLL_INTERVAL_MS = 2500;
 const POLL_MAX_ATTEMPTS = 20;
 let currentPageState = { isMercadoLivre: false, isProductPage: false, url: '', loggedIn: false };
+let historyUrl = `${BACKEND_BASE_URL}/historico`;
 let generatedAffiliateLink = '';
 let isGenerating = false;
 
 const summarizeUrl = (u) => (!u ? '' : u.length <= 72 ? u : `${u.slice(0, 69)}...`);
 const setStatusVariant = (v) => { statusBoxElement.classList.remove('status-neutral', 'status-success', 'status-loading', 'status-error'); statusBoxElement.classList.add(v); };
 
-function setActions({ generate=false, copy=false, openLink=false, history=false }) {
+function setActions({ generate=false, copy=false, openLink=false, history=false, login=false }) {
   generateButton.hidden = !generate;
   copyLinkButton.hidden = !copy;
   openLinkButton.hidden = !openLink;
   historyButton.hidden = !history;
+  openSiteButton.hidden = !login;
 }
 
 async function fetchJson(path, options = {}) {
-  const response = await fetch(`${BACKEND_BASE_URL}${path}`, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...options });
+  const targetUrl = path.startsWith('http') ? path : `${BACKEND_BASE_URL}${path}`;
+  const response = await fetch(targetUrl, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...options });
   return { status: response.status, body: await response.json() };
 }
 
@@ -45,24 +47,25 @@ async function pollJob(jobId) {
 
 function renderState(preview, statusPayload, pageUrl) {
   currentPageState = { isMercadoLivre: preview.platform === 'mercadolivre', isProductPage: !!preview.is_product_page, url: pageUrl, loggedIn: !!statusPayload?.logged_in };
+  historyUrl = statusPayload?.historico_url || `${BACKEND_BASE_URL}/historico`;
   if (!preview.is_valid) {
     setStatusVariant('status-error');
     statusElement.textContent = 'Esta página não é compatível com o MinhaOferta.';
     detailsElement.textContent = 'Acesse uma página de produto do Mercado Livre para gerar seu link com cashback.';
     noteElement.textContent = '';
-    setActions({});
+    setActions({ login: !statusPayload?.logged_in });
   } else if (!preview.is_product_page) {
     setStatusVariant('status-neutral');
     statusElement.textContent = 'Você está no Mercado Livre, mas esta página não parece ser um produto.';
     detailsElement.textContent = 'Abra um produto específico para gerar o link com cashback.';
     noteElement.textContent = '';
-    setActions({});
+    setActions({ login: !statusPayload?.logged_in });
   } else if (!statusPayload?.logged_in) {
     setStatusVariant('status-neutral');
     statusElement.textContent = 'Entre no MinhaOferta para gerar seu link com cashback.';
     detailsElement.textContent = '';
     noteElement.textContent = 'Faça login para continuar.';
-    setActions({});
+    setActions({ login: true });
   } else {
     setStatusVariant('status-success');
     statusElement.textContent = preview.estimated_cashback_label || 'Produto com cashback disponível.';
@@ -70,7 +73,7 @@ function renderState(preview, statusPayload, pageUrl) {
     noteElement.textContent = '';
     generateButton.disabled = false;
     generateButton.textContent = 'Gerar link com cashback';
-    setActions({ generate: true });
+    setActions({ generate: true, login: false });
   }
   urlElement.textContent = summarizeUrl(pageUrl || 'URL não disponível');
 }
@@ -80,7 +83,7 @@ async function validateCurrentTab() {
   const url = activeTab?.url || '';
   try {
     const [statusResp, previewResp] = await Promise.all([
-      fetchJson('/api/extension/status'),
+      fetchJson('https://minhaoferta.com/api/extension/status'),
       fetchJson('/api/extension/product-preview', { method: 'POST', body: JSON.stringify({ url }) })
     ]);
     renderState(previewResp.body, statusResp.body, url);
@@ -89,7 +92,7 @@ async function validateCurrentTab() {
     statusElement.textContent = 'Não foi possível conectar ao MinhaOferta agora.';
     detailsElement.textContent = 'Verifique sua conexão e tente novamente.';
     noteElement.textContent = '';
-    setActions({});
+    setActions({ login: true });
   }
 }
 
@@ -142,10 +145,9 @@ async function startGenerateFlow() {
   }
 }
 
-checkButton.addEventListener('click', validateCurrentTab);
 generateButton.addEventListener('click', startGenerateFlow);
 copyLinkButton.addEventListener('click', async () => { if (generatedAffiliateLink) await navigator.clipboard.writeText(generatedAffiliateLink); });
 openLinkButton.addEventListener('click', () => { if (generatedAffiliateLink) chrome.tabs.create({ url: generatedAffiliateLink }); });
-historyButton.addEventListener('click', () => chrome.tabs.create({ url: `${BACKEND_BASE_URL}/historico` }));
+historyButton.addEventListener('click', () => chrome.tabs.create({ url: historyUrl }));
 openSiteButton.addEventListener('click', () => chrome.tabs.create({ url: BACKEND_BASE_URL }));
 validateCurrentTab();

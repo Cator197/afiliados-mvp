@@ -96,7 +96,7 @@ function setActions({ generate=false, openLink=false, login=false }) {
   openSiteButton.hidden = !login;
 }
 
-function setPopupLoading(visible, label = 'Processando') {
+function setPopupLoading(visible, label = 'Gerando link') {
   popupLoadingElement.hidden = !visible;
   popupLoadingElement.querySelector('.mo-loading-label').textContent = label;
 }
@@ -106,7 +106,7 @@ function renderReadyLinkState(linkData) {
   setStatusVariant('status-success');
   statusElement.textContent = 'Você já tem link de cashback para esse produto.';
   detailsElement.textContent = 'Acesse agora para continuar sua compra com cashback.';
-  noteElement.textContent = linkData.estimated_cashback_label ? `Cashback estimado de até ${linkData.estimated_cashback_label}` : '';
+  noteElement.textContent = linkData.estimated_cashback_label || '';
   setPopupLoading(false);
   openLinkButton.classList.remove('mo-btn-secondary');
   openLinkButton.classList.add('mo-btn-primary');
@@ -189,7 +189,7 @@ function renderState(preview, statusPayload, pageUrl) {
   } else {
     setStatusVariant('status-success');
     statusElement.textContent = 'Produto com cashback disponível.';
-    detailsElement.textContent = preview.estimated_cashback_label ? `Cashback estimado de até ${preview.estimated_cashback_label}` : '';
+    detailsElement.textContent = preview.estimated_cashback_label || '';
     noteElement.textContent = '';
     generateButton.disabled = false;
     generateButton.textContent = 'Gerar link com cashback';

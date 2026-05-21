@@ -3,6 +3,7 @@ const statusElement = document.getElementById('status-text');
 const detailsElement = document.getElementById('status-details');
 const noteElement = document.getElementById('status-note');
 const urlElement = document.getElementById('current-url');
+const popupLoadingElement = document.getElementById('popup-loading');
 const generateButton = document.getElementById('simulate-btn');
 const openLinkButton = document.getElementById('open-link-btn');
 const openSiteButton = document.getElementById('open-site-btn');
@@ -83,12 +84,18 @@ function setActions({ generate=false, openLink=false, login=false }) {
   openSiteButton.hidden = !login;
 }
 
+function setPopupLoading(visible, label = 'Processando') {
+  popupLoadingElement.hidden = !visible;
+  popupLoadingElement.querySelector('.mo-loading-label').textContent = label;
+}
+
 function renderReadyLinkState(linkData) {
   generatedAffiliateLink = linkData.affiliate_url;
   setStatusVariant('status-success');
   statusElement.textContent = 'Link com cashback pronto';
   detailsElement.textContent = 'Use este link para concluir sua compra com cashback.';
   noteElement.textContent = linkData.estimated_cashback_label ? `Cashback estimado: até ${linkData.estimated_cashback_label}` : '';
+  setPopupLoading(false);
   setActions({ openLink: true });
 }
 
@@ -112,6 +119,7 @@ async function pollJob(jobId) {
 
 function renderState(preview, statusPayload, pageUrl) {
   currentPageState = { isMercadoLivre: preview.platform === 'mercadolivre', isProductPage: !!preview.is_product_page, url: pageUrl, loggedIn: !!statusPayload?.logged_in };
+  setPopupLoading(false);
   if (!preview.is_valid) {
     setStatusVariant('status-error');
     statusElement.textContent = 'Esta página não é compatível com o MinhaOferta.';
@@ -175,6 +183,7 @@ async function startGenerateFlow() {
   setStatusVariant('status-loading');
   statusElement.textContent = 'Gerando seu link com cashback...';
   detailsElement.textContent = 'Isso pode levar alguns segundos.';
+  setPopupLoading(true, 'Gerando link');
   noteElement.textContent = '';
   setActions({ generate: true });
   try {
@@ -206,6 +215,7 @@ async function startGenerateFlow() {
       detailsElement.textContent = 'Verifique sua conexão e tente novamente.';
     }
   } finally {
+    setPopupLoading(false);
     isGenerating = false;
     generateButton.disabled = false;
     generateButton.textContent = 'Gerar link com cashback';

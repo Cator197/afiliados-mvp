@@ -157,20 +157,20 @@
     const banner = document.getElementById(BANNER_ID);
     if (!banner) return;
     const title = banner.querySelector('.mo-banner-title');
-    const text = banner.querySelector('.mo-banner-text');
+    const highlight = banner.querySelector('.mo-banner-highlight');
     const subtext = banner.querySelector('.mo-banner-subtext');
     const actions = banner.querySelector('.mo-banner-actions');
 
-    banner.classList.remove('is-loading', 'is-success');
-    title.textContent = data.title || (state === 'initial' ? 'Cashback MinhaOferta' : 'MinhaOferta');
-    text.textContent = data.text || '';
+    banner.classList.remove('is-loading', 'is-success', 'is-error');
+    title.textContent = data.title || 'MinhaOferta';
+    highlight.textContent = data.text || '';
     subtext.textContent = data.subtext || '';
     subtext.style.display = data.subtext ? 'block' : 'none';
     actions.innerHTML = '';
 
     if (state === 'loading') {
       banner.classList.add('is-loading');
-      actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary" disabled>Gerando link...</button>';
+      actions.innerHTML = '<div class="mo-loading" aria-live="polite"><span class="mo-spinner" aria-hidden="true"></span><span class="mo-loading-label">Aguarde</span></div>';
       return;
     }
 
@@ -201,6 +201,8 @@
       return;
     }
 
+    if (state === 'error') banner.classList.add('is-error');
+
     const label = state === 'error' ? 'Tentar novamente' : 'Gerar link';
     actions.innerHTML = `<button type="button" class="mo-btn mo-btn-primary" data-action="generate">${label}</button>`;
     actions.querySelector('[data-action="generate"]')?.addEventListener('click', handleGenerateClick);
@@ -210,7 +212,7 @@
     if (isGenerating) return;
     isGenerating = true;
     setBannerState('loading', {
-      text: 'Gerando seu link com cashback...',
+      text: 'Gerando seu link...',
       subtext: 'Isso pode levar alguns segundos.',
     });
 
@@ -218,7 +220,8 @@
       const loggedIn = await checkExtensionLogin();
       if (!loggedIn) {
         setBannerState('login-required', {
-          text: 'Entre no MinhaOferta para gerar seu link com cashback.',
+          text: 'Entre para gerar seu link',
+          subtext: 'Faça login no MinhaOferta para continuar.',
         });
         return;
       }
@@ -228,7 +231,7 @@
       if (existing?.affiliate_url) {
         currentAffiliateUrl = existing.affiliate_url;
         setBannerState('success', {
-          text: 'Link com cashback pronto.',
+          text: 'Link com cashback pronto',
           subtext: 'Abra o link gerado para continuar sua compra.',
         });
         return;
@@ -239,21 +242,22 @@
       currentAffiliateUrl = doneAffiliateUrl;
       await saveGeneratedLink(productUrl, { affiliate_url: doneAffiliateUrl, job_id: jobId });
       setBannerState('success', {
-        text: 'Link com cashback pronto.',
+        text: 'Link com cashback pronto',
         subtext: 'Abra o link gerado para continuar sua compra.',
       });
     } catch (err) {
       if (err?.code === 'login_required') {
-        setBannerState('login-required', { text: 'Entre no MinhaOferta para gerar seu link com cashback.' });
+        setBannerState('login-required', { text: 'Entre para gerar seu link', subtext: 'Faça login no MinhaOferta para continuar.' });
       } else if (err?.message === 'timeout') {
         setBannerState('timeout', {
-          text: 'Seu link ainda está sendo processado.',
-          subtext: 'Acompanhe pelo histórico no MinhaOferta.',
+          text: 'Seu link ainda está sendo processado',
+          subtext: 'Acompanhe pelo MinhaOferta.',
         });
       } else {
         console.warn('[MinhaOferta] Falha ao gerar link pelo banner.', err);
         setBannerState('error', {
-          text: 'Não foi possível gerar o link agora.',
+          text: 'Não foi possível gerar o link',
+          subtext: 'Tente novamente em alguns instantes.',
         });
       }
     } finally {
@@ -265,10 +269,10 @@
     const banner = document.createElement('aside');
     banner.id = BANNER_ID;
     banner.className = 'mo-banner';
-    banner.innerHTML = '<button type="button" class="mo-banner-close" aria-label="Fechar banner">×</button><strong class="mo-banner-title"></strong><p class="mo-banner-text"></p><p class="mo-banner-subtext"></p><div class="mo-banner-actions"></div>';
+    banner.innerHTML = '<button type="button" class="mo-banner-close" aria-label="Fechar banner">×</button><strong class="mo-banner-title"></strong><p class="mo-banner-highlight"></p><p class="mo-banner-subtext"></p><div class="mo-banner-actions"></div>';
     banner.querySelector('.mo-banner-close')?.addEventListener('click', async () => { await rememberBannerClosed(window.location.href); banner.remove(); });
     setBannerState('initial', {
-      text: 'Cashback disponível neste produto.',
+      text: 'Cashback disponível',
       subtext: 'Gere seu link antes de comprar.',
     });
     return banner;
@@ -306,7 +310,7 @@
     if (stored?.affiliate_url) {
       currentAffiliateUrl = stored.affiliate_url;
       setBannerState('success', {
-        text: 'Link com cashback pronto.',
+        text: 'Link com cashback pronto',
         subtext: 'Abra o link gerado para continuar sua compra.',
       });
       return;

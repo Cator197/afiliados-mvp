@@ -166,3 +166,32 @@ O backend agora consulta regras de cashback cadastradas no banco para montar o *
 - Em timeout, o banner exibe orientação para acompanhar no MinhaOferta e botão “Abrir MinhaOferta”.
 - A extensão não chama worker diretamente.
 - A extensão não calcula cashback oficial e não envia percentuais/valores oficiais no payload de geração.
+
+## PR 13 — Persistência do link gerado
+
+- O link gerado agora é salvo em `chrome.storage.local` na chave `generatedLinks`.
+- A chave de cada item é a URL normalizada do produto (`origin + pathname`, sem query string e sem hash), evitando diferenças por parâmetros de tracking/listagem.
+- Estrutura persistida por produto:
+  - `affiliate_url`
+  - `job_id`
+  - `created_at`
+  - `source` (`extension`)
+  - `original_url`
+  - `estimated_cashback_label` (quando disponível)
+  - `category_name` (quando disponível)
+- Popup e banner recuperam automaticamente link salvo ao abrir/recarregar em página de produto.
+- Quando existe link salvo válido, a UI prioriza estado final com botão único **“Abrir link”**.
+- Se existir link salvo válido para a URL atual, a extensão não cria novo job.
+- Links salvos têm validade padrão de 7 dias (`GENERATED_LINK_TTL_MS`).
+- Registros expirados são removidos durante leitura/limpeza leve.
+- Não são salvos dados sensíveis (sem senha, token, cookie, ou dados bancários).
+
+### Testes manuais (PR 13)
+
+1. Gerar link no popup e confirmar estado “Link com cashback pronto.” com botão “Abrir link”.
+2. Fechar/reabrir popup na mesma página e confirmar recuperação do link salvo sem botão “Gerar link”.
+3. Recarregar página do produto e confirmar que o banner reconhece o link salvo com botão “Abrir link”.
+4. Abrir outro produto e confirmar que não reutiliza link do produto anterior.
+5. Clicar em “Abrir link” e confirmar abertura da `affiliate_url` em nova aba.
+6. Simular `created_at` antigo em `chrome.storage.local` e confirmar remoção de link expirado.
+7. Inspecionar `chrome.storage.local` e confirmar ausência de senha/token/cookie/dados sensíveis.

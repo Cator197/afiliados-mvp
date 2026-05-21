@@ -4,6 +4,8 @@
   const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
   const CHECK_URL_INTERVAL_MS = 1200;
   const POLL_INTERVAL_MS = 2500;
+  const GENERATED_LINKS_STORAGE_KEY = 'generatedLinks';
+  const GENERATED_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const POLL_MAX_ATTEMPTS = 20;
   let lastUrl = '';
   let previewRequestedForUrl = '';
@@ -11,6 +13,64 @@
   let currentAffiliateUrl = '';
 
   const normalizeUrl = (u) => (u || '').split('#')[0];
+
+  function normalizeProductUrl(inputUrl) {
+    try {
+      const parsed = new URL(inputUrl);
+      parsed.hash = '';
+      parsed.search = '';
+      return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
+    } catch {
+      return inputUrl || '';
+    }
+  }
+
+  function isGeneratedLinkExpired(entry) {
+    const createdAt = Number(entry?.created_at || 0);
+    return !createdAt || (Date.now() - createdAt) > GENERATED_LINK_TTL_MS;
+  }
+
+  async function cleanupExpiredGeneratedLinks() {
+    const store = await chrome.storage.local.get([GENERATED_LINKS_STORAGE_KEY]);
+    const links = store[GENERATED_LINKS_STORAGE_KEY] || {};
+    const cleanedEntries = {};
+    Object.entries(links).forEach(([key, value]) => {
+      if (!isGeneratedLinkExpired(value)) cleanedEntries[key] = value;
+    });
+    if (Object.keys(cleanedEntries).length !== Object.keys(links).length) {
+      await chrome.storage.local.set({ [GENERATED_LINKS_STORAGE_KEY]: cleanedEntries });
+    }
+  }
+
+  async function getStoredGeneratedLinkForUrl(url) {
+    const normalizedUrl = normalizeProductUrl(url);
+    const store = await chrome.storage.local.get([GENERATED_LINKS_STORAGE_KEY]);
+    const links = store[GENERATED_LINKS_STORAGE_KEY] || {};
+    const entry = links[normalizedUrl];
+    if (!entry) return null;
+    if (isGeneratedLinkExpired(entry)) {
+      delete links[normalizedUrl];
+      await chrome.storage.local.set({ [GENERATED_LINKS_STORAGE_KEY]: links });
+      return null;
+    }
+    return entry;
+  }
+
+  async function saveGeneratedLink(url, payload) {
+    const normalizedUrl = normalizeProductUrl(url);
+    const store = await chrome.storage.local.get([GENERATED_LINKS_STORAGE_KEY]);
+    const links = store[GENERATED_LINKS_STORAGE_KEY] || {};
+    links[normalizedUrl] = {
+      affiliate_url: payload.affiliate_url,
+      job_id: payload.job_id,
+      created_at: Date.now(),
+      source: 'extension',
+      original_url: url,
+      estimated_cashback_label: payload.estimated_cashback_label || '',
+      category_name: payload.category_name || ''
+    };
+    await chrome.storage.local.set({ [GENERATED_LINKS_STORAGE_KEY]: links });
+  }
   const keyForUrl = (u) => `mo_banner_closed_${normalizeUrl(u)}`;
   const isMercadoLivreHost = (h) => h === 'www.mercadolivre.com.br' || h === 'mercadolivre.com.br';
 
@@ -154,10 +214,24 @@
         return;
       }
 
-      const jobId = await requestGenerateLink(getCurrentProductUrl());
-      currentAffiliateUrl = await pollExtensionJob(jobId);
+      const productUrl = getCurrentProductUrl();
+      const existing = await getStoredGeneratedLinkForUrl(productUrl);
+      if (existing?.affiliate_url) {
+        currentAffiliateUrl = existing.affiliate_url;
+        setBannerState('success', {
+          text: 'Link com cashback pronto.',
+          subtext: 'Use este link para concluir sua compra com cashback.',
+        });
+        return;
+      }
+
+      const jobId = await requestGenerateLink(productUrl);
+      const doneAffiliateUrl = await pollExtensionJob(jobId);
+      currentAffiliateUrl = doneAffiliateUrl;
+      await saveGeneratedLink(productUrl, { affiliate_url: doneAffiliateUrl, job_id: jobId });
       setBannerState('success', {
-        text: 'Link com cashback gerado.',
+        text: 'Link com cashback pronto.',
+        subtext: 'Use este link para concluir sua compra com cashback.',
       });
     } catch (err) {
       if (err?.code === 'login_required') {
@@ -217,7 +291,17 @@
     const c = classifyCurrentPage();
     if (!c.isMercadoLivre || !c.isProductPage) return;
     if (await wasBannerClosedRecently(currentUrl)) return;
+    await cleanupExpiredGeneratedLinks();
     document.body.appendChild(createBanner());
+    const stored = await getStoredGeneratedLinkForUrl(currentUrl);
+    if (stored?.affiliate_url) {
+      currentAffiliateUrl = stored.affiliate_url;
+      setBannerState('success', {
+        text: 'Link com cashback pronto.',
+        subtext: 'Use este link para concluir sua compra com cashback.',
+      });
+      return;
+    }
     updateBannerPreview();
   }
 

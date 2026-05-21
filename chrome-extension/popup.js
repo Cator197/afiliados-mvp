@@ -11,6 +11,8 @@ const openSiteButton = document.getElementById('open-site-btn');
 const BACKEND_BASE_URL = 'https://minhaoferta.com';
 const POLL_INTERVAL_MS = 2500;
 const POLL_MAX_ATTEMPTS = 20;
+const GENERATED_LINKS_STORAGE_KEY = 'generatedLinks';
+const GENERATED_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 let currentPageState = { isMercadoLivre: false, isProductPage: false, url: '', loggedIn: false };
 let historyUrl = `${BACKEND_BASE_URL}/historico`;
 let generatedAffiliateLink = '';
@@ -19,12 +21,80 @@ let isGenerating = false;
 const summarizeUrl = (u) => (!u ? '' : u.length <= 72 ? u : `${u.slice(0, 69)}...`);
 const setStatusVariant = (v) => { statusBoxElement.classList.remove('status-neutral', 'status-success', 'status-loading', 'status-error'); statusBoxElement.classList.add(v); };
 
+
+function normalizeProductUrl(inputUrl) {
+  try {
+    const parsed = new URL(inputUrl);
+    parsed.hash = '';
+    parsed.search = '';
+    return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return inputUrl || '';
+  }
+}
+
+function isGeneratedLinkExpired(entry) {
+  const createdAt = Number(entry?.created_at || 0);
+  return !createdAt || (Date.now() - createdAt) > GENERATED_LINK_TTL_MS;
+}
+
+async function cleanupExpiredGeneratedLinks() {
+  const store = await chrome.storage.local.get([GENERATED_LINKS_STORAGE_KEY]);
+  const links = store[GENERATED_LINKS_STORAGE_KEY] || {};
+  const cleanedEntries = {};
+  Object.entries(links).forEach(([key, value]) => {
+    if (!isGeneratedLinkExpired(value)) cleanedEntries[key] = value;
+  });
+  if (Object.keys(cleanedEntries).length !== Object.keys(links).length) {
+    await chrome.storage.local.set({ [GENERATED_LINKS_STORAGE_KEY]: cleanedEntries });
+  }
+}
+
+async function getStoredGeneratedLinkForUrl(url) {
+  const normalizedUrl = normalizeProductUrl(url);
+  const store = await chrome.storage.local.get([GENERATED_LINKS_STORAGE_KEY]);
+  const links = store[GENERATED_LINKS_STORAGE_KEY] || {};
+  const entry = links[normalizedUrl];
+  if (!entry) return null;
+  if (isGeneratedLinkExpired(entry)) {
+    delete links[normalizedUrl];
+    await chrome.storage.local.set({ [GENERATED_LINKS_STORAGE_KEY]: links });
+    return null;
+  }
+  return { normalizedUrl, entry };
+}
+
+async function saveGeneratedLink(url, payload) {
+  const normalizedUrl = normalizeProductUrl(url);
+  const store = await chrome.storage.local.get([GENERATED_LINKS_STORAGE_KEY]);
+  const links = store[GENERATED_LINKS_STORAGE_KEY] || {};
+  links[normalizedUrl] = {
+    affiliate_url: payload.affiliate_url,
+    job_id: payload.job_id,
+    created_at: Date.now(),
+    source: 'extension',
+    original_url: url,
+    estimated_cashback_label: payload.estimated_cashback_label || '',
+    category_name: payload.category_name || ''
+  };
+  await chrome.storage.local.set({ [GENERATED_LINKS_STORAGE_KEY]: links });
+}
+
 function setActions({ generate=false, copy=false, openLink=false, history=false, login=false }) {
   generateButton.hidden = !generate;
   copyLinkButton.hidden = !copy;
   openLinkButton.hidden = !openLink;
   historyButton.hidden = !history;
   openSiteButton.hidden = !login;
+}
+
+function renderReadyLinkState(linkData) {
+  generatedAffiliateLink = linkData.affiliate_url;
+  setStatusVariant('status-success');
+  statusElement.textContent = 'Link com cashback pronto.';
+  detailsElement.textContent = linkData.estimated_cashback_label || 'Use este link para concluir sua compra com cashback.';
+  noteElement.textContent = '';
+  setActions({ openLink: true });
 }
 
 async function fetchJson(path, options = {}) {
@@ -81,6 +151,13 @@ function renderState(preview, statusPayload, pageUrl) {
 async function validateCurrentTab() {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const url = activeTab?.url || '';
+  await cleanupExpiredGeneratedLinks();
+  const stored = await getStoredGeneratedLinkForUrl(url);
+  if (stored?.entry?.affiliate_url) {
+    urlElement.textContent = summarizeUrl(url || 'URL não disponível');
+    renderReadyLinkState(stored.entry);
+    return;
+  }
   try {
     const [statusResp, previewResp] = await Promise.all([
       fetchJson('https://minhaoferta.com/api/extension/status'),
@@ -112,12 +189,8 @@ async function startGenerateFlow() {
     if (body.error === 'invalid_url') throw new Error('invalid_url');
     if (body.error === 'not_product_page') throw new Error('not_product_page');
     const done = await pollJob(body.job_id);
-    generatedAffiliateLink = done.affiliate_url;
-    setStatusVariant('status-success');
-    statusElement.textContent = 'Link gerado com sucesso.';
-    detailsElement.textContent = summarizeUrl(generatedAffiliateLink);
-    noteElement.textContent = '';
-    setActions({ copy: true, openLink: true, history: true });
+    await saveGeneratedLink(currentPageState.url, { ...done, job_id: body.job_id });
+    renderReadyLinkState({ ...done, estimated_cashback_label: done.estimated_cashback_label });
   } catch (err) {
     const code = err?.message;
     setStatusVariant('status-error');

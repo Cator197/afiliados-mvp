@@ -153,3 +153,16 @@ O backend agora consulta regras de cashback cadastradas no banco para montar o *
 - O popup valida a aba atual automaticamente ao abrir (sem botão manual de verificação).
 - O login é validado via `GET https://minhaoferta.com/api/extension/status` com `credentials: "include"`.
 - O botão **Entrar** só é exibido quando `logged_in` é `false`.
+
+## PR 12 — Geração pelo banner
+
+- O botão do banner agora executa geração real pelo backend da extensão somente após clique explícito do usuário.
+- O banner consulta login em `GET /api/extension/status` antes de criar job.
+- Quando logado, a extensão cria job com `POST /api/extension/generate-link` enviando apenas `{ "url": window.location.href }`.
+- O acompanhamento do job é feito via polling limitado em `GET /api/extension/jobs/<job_id>` (~2.5s por tentativa, até 20 tentativas).
+- Durante o processamento, o botão fica desabilitado e não permite múltiplos cliques/jobs concorrentes.
+- Estados visuais cobertos: inicial, carregando, login necessário, sucesso, erro e timeout.
+- No sucesso, o banner exibe botão único “Abrir link” e abre `affiliate_url` retornada pelo backend.
+- Em timeout, o banner exibe orientação para acompanhar no MinhaOferta e botão “Abrir MinhaOferta”.
+- A extensão não chama worker diretamente.
+- A extensão não calcula cashback oficial e não envia percentuais/valores oficiais no payload de geração.

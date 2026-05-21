@@ -216,3 +216,24 @@ O backend agora consulta regras de cashback cadastradas no banco para montar o *
 - Nenhum endpoint/backend foi alterado.
 - Nenhum worker foi alterado.
 - Nenhuma regra financeira/cálculo de cashback foi alterada.
+
+## PR 16 — Atalhos de Histórico e Site
+
+- O popup passou a ter atalhos discretos no topo direito: **Histórico** e **Site**.
+- O botão **Site** abre `https://minhaoferta.com` em nova aba via `chrome.tabs.create`.
+- O botão **Histórico** reutiliza o status já carregado do endpoint `GET /api/extension/status`:
+  - se `logged_in` e `historico_url` válido, abre a URL de histórico do usuário;
+  - se deslogado, sem `historico_url` ou URL inválida, usa fallback seguro para `https://minhaoferta.com`.
+- A URL de histórico é validada para permitir apenas origem `https://minhaoferta.com`, evitando abertura de URL externa.
+- Os atalhos ficam sempre disponíveis no topo, sem virar CTA principal.
+- A área principal do estado final continua simplificada com apenas o botão **Abrir link**.
+- Nenhum backend novo foi criado e nenhum endpoint foi adicionado.
+
+### Testes manuais (PR 16)
+
+1. **Botão Site**: abrir popup em qualquer página e confirmar abertura de `https://minhaoferta.com` em nova aba.
+2. **Histórico logado**: com sessão ativa, clicar em Histórico e confirmar abertura de `historico_url`.
+3. **Histórico deslogado**: sem sessão, clicar em Histórico e confirmar fallback para `https://minhaoferta.com`.
+4. **Estado final**: após gerar link, confirmar que área principal mantém apenas CTA **Abrir link**.
+5. **Página incompatível**: em `google.com`, confirmar funcionamento dos atalhos do topo.
+6. **URL segura**: confirmar que URL inválida/externa em `historico_url` cai para fallback seguro em `https://minhaoferta.com`.

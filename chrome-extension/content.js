@@ -146,8 +146,9 @@
   }
 
   function openUrl(url) {
-    if (!url) return;
+    if (!url) return false;
     window.open(url, '_blank', 'noopener,noreferrer');
+    return true;
   }
 
   function removeBanner() { document.getElementById(BANNER_ID)?.remove(); }
@@ -176,7 +177,15 @@
     if (state === 'success') {
       banner.classList.add('is-success');
       actions.innerHTML = '<button type="button" class="mo-btn mo-btn-primary" data-action="open-link">Abrir link</button>';
-      actions.querySelector('[data-action="open-link"]')?.addEventListener('click', () => openUrl(currentAffiliateUrl));
+      actions.querySelector('[data-action="open-link"]')?.addEventListener('click', () => {
+        if (!openUrl(currentAffiliateUrl)) {
+          setBannerState('error', {
+            title: 'MinhaOferta',
+            text: 'Não foi possível abrir o link gerado.',
+            subtext: ''
+          });
+        }
+      });
       return;
     }
 
@@ -220,7 +229,7 @@
         currentAffiliateUrl = existing.affiliate_url;
         setBannerState('success', {
           text: 'Link com cashback pronto.',
-          subtext: 'Use este link para concluir sua compra com cashback.',
+          subtext: 'Abra o link gerado para continuar sua compra.',
         });
         return;
       }
@@ -231,7 +240,7 @@
       await saveGeneratedLink(productUrl, { affiliate_url: doneAffiliateUrl, job_id: jobId });
       setBannerState('success', {
         text: 'Link com cashback pronto.',
-        subtext: 'Use este link para concluir sua compra com cashback.',
+        subtext: 'Abra o link gerado para continuar sua compra.',
       });
     } catch (err) {
       if (err?.code === 'login_required') {
@@ -298,7 +307,7 @@
       currentAffiliateUrl = stored.affiliate_url;
       setBannerState('success', {
         text: 'Link com cashback pronto.',
-        subtext: 'Use este link para concluir sua compra com cashback.',
+        subtext: 'Abra o link gerado para continuar sua compra.',
       });
       return;
     }

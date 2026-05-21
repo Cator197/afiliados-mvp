@@ -7,6 +7,8 @@ const popupLoadingElement = document.getElementById('popup-loading');
 const generateButton = document.getElementById('simulate-btn');
 const openLinkButton = document.getElementById('open-link-btn');
 const openSiteButton = document.getElementById('open-site-btn');
+const headerHistoryButton = document.getElementById('header-history-btn');
+const headerSiteButton = document.getElementById('header-site-btn');
 const BACKEND_BASE_URL = 'https://minhaoferta.com';
 const POLL_INTERVAL_MS = 2500;
 const POLL_MAX_ATTEMPTS = 20;
@@ -15,6 +17,7 @@ const GENERATED_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 let currentPageState = { isMercadoLivre: false, isProductPage: false, url: '', loggedIn: false };
 let generatedAffiliateLink = '';
 let isGenerating = false;
+let extensionStatus = null;
 
 const summarizeUrl = (u) => (!u ? '' : u.length <= 72 ? u : `${u.slice(0, 69)}...`);
 const setStatusVariant = (v) => { statusBoxElement.classList.remove('status-neutral', 'status-success', 'status-loading', 'status-error'); statusBoxElement.classList.add(v); };
@@ -99,6 +102,32 @@ function renderReadyLinkState(linkData) {
   setActions({ openLink: true });
 }
 
+function getSafeHistoricoUrl(statusPayload) {
+  const fallbackUrl = BACKEND_BASE_URL;
+  const candidate = statusPayload?.logged_in ? statusPayload?.historico_url : '';
+  if (!candidate) return fallbackUrl;
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.origin !== BACKEND_BASE_URL) return fallbackUrl;
+    if (!parsed.pathname.startsWith('/')) return fallbackUrl;
+    return parsed.toString();
+  } catch {
+    return fallbackUrl;
+  }
+}
+
+function openUrlInNewTab(url) {
+  try {
+    chrome.tabs.create({ url }, () => {
+      if (chrome.runtime.lastError) {
+        console.warn('[MinhaOferta] Falha ao abrir nova aba:', chrome.runtime.lastError.message);
+      }
+    });
+  } catch (err) {
+    console.warn('[MinhaOferta] Falha ao abrir nova aba:', err);
+  }
+}
+
 async function fetchJson(path, options = {}) {
   const targetUrl = path.startsWith('http') ? path : `${BACKEND_BASE_URL}${path}`;
   const response = await fetch(targetUrl, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...options });
@@ -165,8 +194,10 @@ async function validateCurrentTab() {
       fetchJson('https://minhaoferta.com/api/extension/status'),
       fetchJson('/api/extension/product-preview', { method: 'POST', body: JSON.stringify({ url }) })
     ]);
+    extensionStatus = statusResp.body || null;
     renderState(previewResp.body, statusResp.body, url);
   } catch {
+    extensionStatus = null;
     setStatusVariant('status-error');
     statusElement.textContent = 'Não foi possível conectar ao MinhaOferta agora.';
     detailsElement.textContent = 'Verifique sua conexão e tente novamente.';
@@ -231,7 +262,12 @@ openLinkButton.addEventListener('click', () => {
     noteElement.textContent = '';
     return;
   }
-  chrome.tabs.create({ url: generatedAffiliateLink });
+  openUrlInNewTab(generatedAffiliateLink);
 });
-openSiteButton.addEventListener('click', () => chrome.tabs.create({ url: BACKEND_BASE_URL }));
+openSiteButton.addEventListener('click', () => openUrlInNewTab(BACKEND_BASE_URL));
+headerSiteButton.addEventListener('click', () => openUrlInNewTab(BACKEND_BASE_URL));
+headerHistoryButton.addEventListener('click', () => {
+  const targetUrl = getSafeHistoricoUrl(extensionStatus);
+  openUrlInNewTab(targetUrl);
+});
 validateCurrentTab();

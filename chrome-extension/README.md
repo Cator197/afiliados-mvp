@@ -146,3 +146,10 @@ O backend agora consulta regras de cashback cadastradas no banco para montar o *
 - Admin de links ganhou visualização/filtro por origem.
 - Logs simples de auditoria foram adicionados para preview, geração, rejeições e consulta de job da extensão.
 - Nenhum impacto no worker, metadata_worker, confirmação de compra ou cálculo financeiro oficial de cashback.
+
+
+## Popup behavior
+
+- O popup valida a aba atual automaticamente ao abrir (sem botão manual de verificação).
+- O login é validado via `GET https://minhaoferta.com/api/extension/status` com `credentials: "include"`.
+- O botão **Entrar** só é exibido quando `logged_in` é `false`.

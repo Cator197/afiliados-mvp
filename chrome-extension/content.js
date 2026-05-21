@@ -3,7 +3,7 @@
   const BACKEND_BASE_URL = 'https://minhaoferta.com';
   const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
   const CHECK_URL_INTERVAL_MS = 1200;
-  const POLL_INTERVAL_MS = 2500;
+  const POLL_INTERVAL_MS = 3000;
   const GENERATED_LINKS_STORAGE_KEY = 'generatedLinks';
   const GENERATED_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const POLL_MAX_ATTEMPTS = 20;
@@ -107,7 +107,8 @@
 
   async function fetchJson(path, options = {}) {
     const response = await fetch(`${BACKEND_BASE_URL}${path}`, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...options });
-    const body = await response.json();
+    let body = null;
+    try { body = await response.json(); } catch { body = null; }
     return { status: response.status, body };
   }
 
@@ -137,16 +138,30 @@
   async function pollExtensionJob(jobId) {
     for (let i = 0; i < POLL_MAX_ATTEMPTS; i += 1) {
       const { status, body } = await fetchJson(`/api/extension/jobs/${jobId}`);
-      if (status >= 400) throw new Error('job_failed');
+      if (status === 401) throw new Error('login_required');
+      if (status === 403) throw new Error('job_failed');
+      if (status === 404) throw new Error('job_not_found');
+      if (status >= 500) throw new Error('job_failed');
+      if (!body) throw new Error('job_failed');
       if (body?.status === 'success' && body?.affiliate_url) return body.affiliate_url;
+      if (body?.status === 'success' && !body?.affiliate_url) throw new Error('job_failed');
       if (body?.status === 'error') throw new Error('job_failed');
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     }
     throw new Error('timeout');
   }
 
+  function isHttpUrl(url) {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
   function openUrl(url) {
-    if (!url) return false;
+    if (!isHttpUrl(url)) return false;
     window.open(url, '_blank', 'noopener,noreferrer');
     return true;
   }
@@ -212,7 +227,7 @@
     if (isGenerating) return;
     isGenerating = true;
     setBannerState('loading', {
-      text: 'Gerando seu link...',
+      text: 'Gerando seu link com cashback...',
       subtext: 'Isso pode levar alguns segundos.',
     });
 
@@ -220,8 +235,8 @@
       const loggedIn = await checkExtensionLogin();
       if (!loggedIn) {
         setBannerState('login-required', {
-          text: 'Entre para gerar seu link',
-          subtext: 'Faça login no MinhaOferta para continuar.',
+          text: 'Entre no MinhaOferta para gerar seu link com cashback.',
+          subtext: '',
         });
         return;
       }
@@ -247,17 +262,17 @@
       });
     } catch (err) {
       if (err?.code === 'login_required') {
-        setBannerState('login-required', { text: 'Entre para gerar seu link', subtext: 'Faça login no MinhaOferta para continuar.' });
+        setBannerState('login-required', { text: 'Entre no MinhaOferta para gerar seu link com cashback.', subtext: '' });
       } else if (err?.message === 'timeout') {
         setBannerState('timeout', {
-          text: 'Seu link ainda está sendo processado',
+          text: 'Seu link ainda está sendo processado.',
           subtext: 'Acompanhe pelo MinhaOferta.',
         });
       } else {
-        console.warn('[MinhaOferta] Falha ao gerar link pelo banner.', err);
+        console.warn('[MinhaOferta] Falha ao gerar link pelo banner.');
         setBannerState('error', {
-          text: 'Não foi possível gerar o link',
-          subtext: 'Tente novamente em alguns instantes.',
+          text: 'Não foi possível gerar o link agora.',
+          subtext: '',
         });
       }
     } finally {
@@ -272,7 +287,7 @@
     banner.innerHTML = '<button type="button" class="mo-banner-close" aria-label="Fechar banner">×</button><strong class="mo-banner-title"></strong><p class="mo-banner-highlight"></p><p class="mo-banner-subtext"></p><div class="mo-banner-actions"></div>';
     banner.querySelector('.mo-banner-close')?.addEventListener('click', async () => { await rememberBannerClosed(window.location.href); banner.remove(); });
     setBannerState('initial', {
-      text: 'Cashback disponível',
+      text: 'Produto com cashback disponível.',
       subtext: 'Gere seu link antes de comprar.',
     });
     return banner;
@@ -290,8 +305,8 @@
           subtext: 'Gere seu link antes de comprar.',
         });
       }
-    } catch (err) {
-      console.error('[MinhaOferta] Falha ao carregar preview do banner.', err);
+    } catch {
+      console.warn('[MinhaOferta] Falha ao carregar preview do banner.');
     }
   }
 

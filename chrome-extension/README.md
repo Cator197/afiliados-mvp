@@ -237,3 +237,35 @@ O backend agora consulta regras de cashback cadastradas no banco para montar o *
 4. **Estado final**: após gerar link, confirmar que área principal mantém apenas CTA **Abrir link**.
 5. **Página incompatível**: em `google.com`, confirmar funcionamento dos atalhos do topo.
 6. **URL segura**: confirmar que URL inválida/externa em `historico_url` cai para fallback seguro em `https://minhaoferta.com`.
+
+## PR 17 — Estabilidade para beta
+
+- Mensagens do popup e banner foram padronizadas com textos consistentes para página incompatível, não-produto, login, geração, sucesso, erro e timeout.
+- Polling foi revisado para intervalo de 3 segundos e limite de 20 tentativas, com parada em sucesso, erro e timeout.
+- Persistência por URL normalizada foi mantida com limpeza de TTL e fallback seguro quando `chrome.storage.local` falha.
+- Permissões do manifest foram revisadas e mantidas mínimas para Mercado Livre, MinhaOferta e storage.
+- Tratamento de erros foi reforçado para respostas inválidas, `affiliate_url` ausente/inválida e falhas de rede, sem expor payload sensível.
+- Segurança de abertura de URLs foi endurecida para permitir apenas `http/https` nos botões Site, Histórico e Abrir link.
+- Logs foram reduzidos para `console.warn` com mensagens controladas.
+- Extensão está pronta para teste beta manual.
+
+## Checklist de teste beta
+
+- [ ] Instalar extensão em Chrome limpo.
+- [ ] Testar usuário logado.
+- [ ] Testar usuário deslogado.
+- [ ] Testar produto Mercado Livre.
+- [ ] Testar home Mercado Livre.
+- [ ] Testar busca Mercado Livre.
+- [ ] Testar site incompatível.
+- [ ] Testar geração pelo popup.
+- [ ] Testar geração pelo banner.
+- [ ] Testar persistência após fechar popup.
+- [ ] Testar persistência após recarregar página.
+- [ ] Testar outro produto.
+- [ ] Testar botão Histórico.
+- [ ] Testar botão Site.
+- [ ] Testar abrir link.
+- [ ] Testar worker parado/timeout.
+- [ ] Verificar console sem erros críticos.
+- [ ] Verificar que não há segredos no código.

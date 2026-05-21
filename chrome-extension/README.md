@@ -205,3 +205,14 @@ O backend agora consulta regras de cashback cadastradas no banco para montar o *
 - A verificação da página continua automática no popup ao abrir.
 - Quando existe link salvo válido para a URL atual, a extensão mostra o estado pronto diretamente.
 - Quando existe link salvo válido para a URL atual, a extensão não cria novo job.
+
+## PR 15 — Visual do banner e animação
+
+- O banner inferior foi redesenhado para um visual mais chamativo e profissional, mantendo posicionamento discreto no canto inferior direito.
+- O cashback estimado agora aparece em destaque principal usando o `estimated_cashback_label` retornado pelo backend; quando indisponível, a UI usa fallback “Cashback disponível”.
+- Foi adicionada animação de carregamento com spinner em CSS no banner durante a geração do link.
+- O popup também passou a exibir animação de carregamento com a mesma identidade visual durante a geração.
+- Foram refinadas microcopys dos estados (inicial, carregando, sucesso, login, erro e timeout) mantendo linguagem de estimativa.
+- Nenhum endpoint/backend foi alterado.
+- Nenhum worker foi alterado.
+- Nenhuma regra financeira/cálculo de cashback foi alterada.

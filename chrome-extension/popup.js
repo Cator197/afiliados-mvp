@@ -10,7 +10,7 @@ const openSiteButton = document.getElementById('open-site-btn');
 const headerHistoryButton = document.getElementById('header-history-btn');
 const headerSiteButton = document.getElementById('header-site-btn');
 const BACKEND_BASE_URL = 'https://minhaoferta.com';
-const POLL_INTERVAL_MS = 2500;
+const POLL_INTERVAL_MS = 3000;
 const POLL_MAX_ATTEMPTS = 20;
 const GENERATED_LINKS_STORAGE_KEY = 'generatedLinks';
 const GENERATED_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -21,7 +21,9 @@ let extensionStatus = null;
 
 const summarizeUrl = (u) => (!u ? '' : u.length <= 72 ? u : `${u.slice(0, 69)}...`);
 const setStatusVariant = (v) => { statusBoxElement.classList.remove('status-neutral', 'status-success', 'status-loading', 'status-error'); statusBoxElement.classList.add(v); };
-
+const safeJson = async (response) => {
+  try { return await response.json(); } catch { return null; }
+};
 
 function normalizeProductUrl(inputUrl) {
   try {
@@ -31,6 +33,15 @@ function normalizeProductUrl(inputUrl) {
     return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
   } catch {
     return inputUrl || '';
+  }
+}
+
+function isHttpUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
   }
 }
 
@@ -95,9 +106,9 @@ function setPopupLoading(visible, label = 'Processando') {
 function renderReadyLinkState(linkData) {
   generatedAffiliateLink = linkData.affiliate_url;
   setStatusVariant('status-success');
-  statusElement.textContent = 'Link com cashback pronto';
-  detailsElement.textContent = 'Use este link para concluir sua compra com cashback.';
-  noteElement.textContent = linkData.estimated_cashback_label ? `Cashback estimado: até ${linkData.estimated_cashback_label}` : '';
+  statusElement.textContent = 'Link com cashback pronto.';
+  detailsElement.textContent = 'Abra o link gerado para continuar sua compra.';
+  noteElement.textContent = linkData.estimated_cashback_label ? `Cashback estimado de até ${linkData.estimated_cashback_label}` : '';
   setPopupLoading(false);
   setActions({ openLink: true });
 }
@@ -117,29 +128,37 @@ function getSafeHistoricoUrl(statusPayload) {
 }
 
 function openUrlInNewTab(url) {
+  if (!isHttpUrl(url)) return false;
   try {
     chrome.tabs.create({ url }, () => {
       if (chrome.runtime.lastError) {
-        console.warn('[MinhaOferta] Falha ao abrir nova aba:', chrome.runtime.lastError.message);
+        console.warn('[MinhaOferta] Falha ao abrir nova aba.');
       }
     });
-  } catch (err) {
-    console.warn('[MinhaOferta] Falha ao abrir nova aba:', err);
+    return true;
+  } catch {
+    console.warn('[MinhaOferta] Falha ao abrir nova aba.');
+    return false;
   }
 }
 
 async function fetchJson(path, options = {}) {
   const targetUrl = path.startsWith('http') ? path : `${BACKEND_BASE_URL}${path}`;
   const response = await fetch(targetUrl, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...options });
-  return { status: response.status, body: await response.json() };
+  const body = await safeJson(response);
+  return { status: response.status, body };
 }
 
 async function pollJob(jobId) {
   for (let i=0;i<POLL_MAX_ATTEMPTS;i+=1) {
     const { status, body } = await fetchJson(`/api/extension/jobs/${jobId}`);
     if (status === 401) throw new Error('login_required');
+    if (status === 403) throw new Error('job_forbidden');
     if (status === 404) throw new Error('job_not_found');
+    if (status >= 500) throw new Error('server_error');
+    if (!body) throw new Error('invalid_json');
     if (body.status === 'success' && body.affiliate_url) return body;
+    if (body.status === 'success' && !body.affiliate_url) throw new Error('missing_affiliate_url');
     if (body.status === 'error') throw new Error('job_error');
     await new Promise((r)=>setTimeout(r,POLL_INTERVAL_MS));
   }
@@ -152,25 +171,25 @@ function renderState(preview, statusPayload, pageUrl) {
   if (!preview.is_valid) {
     setStatusVariant('status-error');
     statusElement.textContent = 'Esta página não é compatível com o MinhaOferta.';
-    detailsElement.textContent = 'Acesse uma página de produto do Mercado Livre para gerar seu link com cashback.';
+    detailsElement.textContent = 'Abra uma página de produto do Mercado Livre para gerar seu link com cashback.';
     noteElement.textContent = '';
     setActions({ login: !statusPayload?.logged_in });
   } else if (!preview.is_product_page) {
     setStatusVariant('status-neutral');
-    statusElement.textContent = 'Você está no Mercado Livre, mas esta página não parece ser um produto.';
-    detailsElement.textContent = 'Abra um produto específico para gerar o link com cashback.';
+    statusElement.textContent = 'Abra uma página de produto do Mercado Livre para gerar seu link com cashback.';
+    detailsElement.textContent = '';
     noteElement.textContent = '';
     setActions({ login: !statusPayload?.logged_in });
   } else if (!statusPayload?.logged_in) {
     setStatusVariant('status-neutral');
     statusElement.textContent = 'Entre no MinhaOferta para gerar seu link com cashback.';
     detailsElement.textContent = '';
-    noteElement.textContent = 'Faça login para continuar.';
+    noteElement.textContent = '';
     setActions({ login: true });
   } else {
     setStatusVariant('status-success');
-    statusElement.textContent = preview.estimated_cashback_label || 'Produto com cashback disponível.';
-    detailsElement.textContent = preview.estimated_cashback_label ? 'Valor estimado. O cashback final depende da confirmação da compra.' : 'Gere seu link antes de comprar para participar do cashback.';
+    statusElement.textContent = 'Produto com cashback disponível.';
+    detailsElement.textContent = preview.estimated_cashback_label ? `Cashback estimado de até ${preview.estimated_cashback_label}` : '';
     noteElement.textContent = '';
     generateButton.disabled = false;
     generateButton.textContent = 'Gerar link com cashback';
@@ -182,25 +201,31 @@ function renderState(preview, statusPayload, pageUrl) {
 async function validateCurrentTab() {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const url = activeTab?.url || '';
-  await cleanupExpiredGeneratedLinks();
-  const stored = await getStoredGeneratedLinkForUrl(url);
-  if (stored?.entry?.affiliate_url) {
-    urlElement.textContent = summarizeUrl(url || 'URL não disponível');
-    renderReadyLinkState(stored.entry);
-    return;
+  try {
+    await cleanupExpiredGeneratedLinks();
+    const stored = await getStoredGeneratedLinkForUrl(url);
+    if (stored?.entry?.affiliate_url) {
+      urlElement.textContent = summarizeUrl(url || 'URL não disponível');
+      renderReadyLinkState(stored.entry);
+      return;
+    }
+  } catch {
+    console.warn('[MinhaOferta] Falha ao ler links salvos no popup.');
   }
+
   try {
     const [statusResp, previewResp] = await Promise.all([
-      fetchJson('https://minhaoferta.com/api/extension/status'),
+      fetchJson('/api/extension/status'),
       fetchJson('/api/extension/product-preview', { method: 'POST', body: JSON.stringify({ url }) })
     ]);
+    if (!statusResp.body || !previewResp.body) throw new Error('invalid_json');
     extensionStatus = statusResp.body || null;
     renderState(previewResp.body, statusResp.body, url);
   } catch {
     extensionStatus = null;
     setStatusVariant('status-error');
-    statusElement.textContent = 'Não foi possível conectar ao MinhaOferta agora.';
-    detailsElement.textContent = 'Verifique sua conexão e tente novamente.';
+    statusElement.textContent = 'Não foi possível gerar o link agora.';
+    detailsElement.textContent = 'Tente novamente em alguns instantes.';
     noteElement.textContent = '';
     setActions({ login: true });
   }
@@ -219,10 +244,14 @@ async function startGenerateFlow() {
   setActions({ generate: true });
   try {
     const { status, body } = await fetchJson('/api/extension/generate-link', { method: 'POST', body: JSON.stringify({ url: currentPageState.url }) });
-    if (status === 401 || body.error === 'login_required') throw new Error('login_required');
-    if (body.error === 'invalid_url') throw new Error('invalid_url');
-    if (body.error === 'not_product_page') throw new Error('not_product_page');
+    if (status === 401 || body?.error === 'login_required') throw new Error('login_required');
+    if (status === 403) throw new Error('forbidden');
+    if (status >= 500) throw new Error('server_error');
+    if (body?.error === 'invalid_url') throw new Error('invalid_url');
+    if (body?.error === 'not_product_page') throw new Error('not_product_page');
+    if (!body?.job_id) throw new Error('generate_failed');
     const done = await pollJob(body.job_id);
+    if (!isHttpUrl(done.affiliate_url)) throw new Error('invalid_affiliate_url');
     await saveGeneratedLink(currentPageState.url, { ...done, job_id: body.job_id });
     renderReadyLinkState({ ...done, estimated_cashback_label: done.estimated_cashback_label });
   } catch (err) {
@@ -231,19 +260,19 @@ async function startGenerateFlow() {
     setActions({ generate: true });
     if (code === 'login_required') {
       statusElement.textContent = 'Entre no MinhaOferta para gerar seu link com cashback.';
-      detailsElement.textContent = 'Faça login e tente novamente.';
+      detailsElement.textContent = '';
     } else if (code === 'invalid_url') {
       statusElement.textContent = 'Esta página não é compatível com o MinhaOferta.';
-      detailsElement.textContent = 'Acesse uma página de produto do Mercado Livre para gerar seu link com cashback.';
+      detailsElement.textContent = 'Abra uma página de produto do Mercado Livre para gerar seu link com cashback.';
     } else if (code === 'not_product_page') {
-      statusElement.textContent = 'Você está no Mercado Livre, mas esta página não parece ser um produto.';
-      detailsElement.textContent = 'Abra um produto específico para gerar o link com cashback.';
+      statusElement.textContent = 'Abra uma página de produto do Mercado Livre para gerar seu link com cashback.';
+      detailsElement.textContent = '';
     } else if (code === 'timeout') {
       statusElement.textContent = 'Seu link ainda está sendo processado.';
       detailsElement.textContent = 'Aguarde alguns instantes e tente novamente.';
     } else {
-      statusElement.textContent = 'Não foi possível conectar ao MinhaOferta agora.';
-      detailsElement.textContent = 'Verifique sua conexão e tente novamente.';
+      statusElement.textContent = 'Não foi possível gerar o link agora.';
+      detailsElement.textContent = 'Tente novamente em alguns instantes.';
     }
   } finally {
     setPopupLoading(false);
@@ -255,14 +284,12 @@ async function startGenerateFlow() {
 
 generateButton.addEventListener('click', startGenerateFlow);
 openLinkButton.addEventListener('click', () => {
-  if (!generatedAffiliateLink) {
+  if (!generatedAffiliateLink || !isHttpUrl(generatedAffiliateLink) || !openUrlInNewTab(generatedAffiliateLink)) {
     setStatusVariant('status-error');
     statusElement.textContent = 'Não foi possível abrir o link gerado.';
     detailsElement.textContent = 'Tente gerar o link novamente.';
     noteElement.textContent = '';
-    return;
   }
-  openUrlInNewTab(generatedAffiliateLink);
 });
 openSiteButton.addEventListener('click', () => openUrlInNewTab(BACKEND_BASE_URL));
 headerSiteButton.addEventListener('click', () => openUrlInNewTab(BACKEND_BASE_URL));

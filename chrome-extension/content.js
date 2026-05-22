@@ -185,7 +185,7 @@
 
     if (state === 'loading') {
       banner.classList.add('is-loading');
-      actions.innerHTML = '<div class="mo-loading" aria-live="polite"><span class="mo-loading-label">Gerando link</span></div>'; 
+      actions.innerHTML = '<div class="mo-loading" aria-live="polite"><span class="mo-spinner" aria-hidden="true"></span><span class="mo-loading-label">Gerando link</span></div>';
       return;
     }
 
@@ -246,9 +246,9 @@
       if (existing?.affiliate_url) {
         currentAffiliateUrl = existing.affiliate_url;
         setBannerState('success', {
-          title: 'Link de cashback pronto',
-          text: 'Link de cashback pronto',
-          subtext: 'Você já tem link para esse produto.',
+          title: 'MinhaOferta',
+          text: 'Você já tem link de cashback para esse produto.',
+          subtext: 'Acesse agora para continuar sua compra com cashback.',
         });
         return;
       }
@@ -258,9 +258,9 @@
       currentAffiliateUrl = doneAffiliateUrl;
       await saveGeneratedLink(productUrl, { affiliate_url: doneAffiliateUrl, job_id: jobId });
       setBannerState('success', {
-        title: 'Link de cashback pronto',
-        text: 'Link de cashback pronto',
-        subtext: 'Você já tem link para esse produto.',
+        title: 'MinhaOferta',
+        text: 'Você já tem link de cashback para esse produto.',
+        subtext: 'Acesse agora para continuar sua compra com cashback.',
       });
     } catch (err) {
       if (err?.code === 'login_required') {
@@ -327,9 +327,9 @@
     if (stored?.affiliate_url) {
       currentAffiliateUrl = stored.affiliate_url;
       setBannerState('success', {
-        title: 'Link de cashback pronto',
-        text: 'Link de cashback pronto',
-        subtext: 'Você já tem link para esse produto.',
+        title: 'MinhaOferta',
+        text: 'Você já tem link de cashback para esse produto.',
+        subtext: 'Acesse agora para continuar sua compra com cashback.',
       });
       return;
     }

@@ -141,3 +141,72 @@ Também há item destinado a uma única OS, item rateado entre duas OSs, item pa
 ```text
 feat: implementa módulo de compras e recebimentos
 ```
+
+## Etapa 6 — Financeiro, Fluxo de Caixa e Rentabilidade
+
+A Etapa 6 adiciona o módulo financeiro simulado da Melo Reparos, preservando o protótipo local em HTML, CSS e JavaScript puro, sem backend e sem banco de dados definitivo.
+
+### Arquivos criados
+
+- `paginas/financeiro.html` — visão geral financeira com indicadores, período, alertas, próximos vencimentos e histórico.
+- `paginas/contas-receber.html` — contas a receber em modos de contas, parcelas e pagadores.
+- `paginas/contas-pagar.html` — contas a pagar em modos de contas, parcelas, fornecedores e categorias.
+- `paginas/fluxo-caixa.html` — fluxo de caixa mensal com entradas/saídas previstas e realizadas.
+- `paginas/rentabilidade.html` — rentabilidade por OS, lucro estimado, lucro realizado e fechamento financeiro.
+- `paginas/regras-pagamento.html` — regras de pagamento e taxas de cartão fictícias.
+- `paginas/categorias-financeiras.html` — categorias financeiras iniciais.
+- `assets/js/financeiro-core.js` — dados, cálculos e operações financeiras centralizadas.
+- `assets/js/financeiro-ui.js` — modais e helpers visuais compartilhados do financeiro.
+- `assets/js/financeiro.js`, `assets/js/contas-receber.js`, `assets/js/contas-pagar.js`, `assets/js/fluxo-caixa.js`, `assets/js/rentabilidade.js`, `assets/js/regras-pagamento.js`, `assets/js/categorias-financeiras.js` — scripts específicos de cada página.
+
+### Arquivos modificados
+
+- `assets/js/app-shared.js` — sessão local atualizada para a versão 6.
+- `assets/js/inicio.js` — painel inicial com recebimentos, pagamentos, contas vencidas, saldo previsto, OS com saldo e alertas financeiros.
+- `assets/js/producao.js` — agenda semanal enriquecida com eventos financeiros simulados.
+- `assets/js/os-detalhes.js` — aba financeira da OS com receitas, custos, margem, pendências, fechamento e reabertura.
+- `assets/css/melo.css` — estilos responsivos para indicadores financeiros, linha do tempo, modais e fluxo de caixa.
+- Páginas HTML existentes — navegação principal ampliada com Financeiro, Receber, Pagar, Fluxo e Rentabilidade.
+
+### Interações simuladas
+
+- Criar conta a receber, gerar parcelas, recalcular taxa de cartão e revisar a fórmula antes de confirmar.
+- Criar conta a pagar somente após confirmação explícita, inclusive vinculada a compra ou OS.
+- Registrar recebimento total, recebimento parcial, pagamento total, pagamento parcial, descontos, juros e estornos.
+- Filtrar contas por texto, status, pagador, fornecedor, categoria, vencidas, parciais e valores.
+- Alternar fluxo de caixa entre previsto/realizado e entradas/saídas, navegar por mês e consultar pendências.
+- Consultar lucro estimado, lucro realizado provisório, margem por OS, OS com prejuízo e OS sem fechamento.
+- Fechar financeiramente uma OS, bloquear fechamento silencioso quando houver pendências e permitir fechamento com ressalva mediante justificativa.
+- Reabrir fechamento financeiro com motivo e registro em histórico.
+
+### Dados fictícios e decisões assumidas
+
+- Os dados da Etapa 6 são centralizados e sincronizados em `assets/js/financeiro-core.js`, usando `sessionStorage` por meio dos helpers existentes.
+- Foram cadastradas mais de 18 contas a receber, 18 contas a pagar, mais de 30 parcelas, 12 baixas, 6 regras de pagamento, 6 taxas de cartão e 19 categorias financeiras.
+- A OS 1042 permanece como principal demonstração: seguradora, franquia do cliente, serviço adicional, taxa de cartão, compra vinculada, conta a pagar, recebimento parcial, lucro estimado e lucro realizado provisório com pendências.
+- O saldo inicial é apenas fictício para visualização do fluxo de caixa e não representa conta bancária real.
+- O lucro realizado é exibido como provisório quando há receitas pendentes, contas vencidas, compras sem conta, complementos pendentes ou custos não liquidados.
+- Não foram implementados boleto, nota fiscal, conciliação bancária, integração externa, backend, banco de dados ou múltiplas contas bancárias.
+
+### Como abrir e testar
+
+1. Abra `paginas/inicio.html` diretamente no navegador.
+2. Navegue para `Financeiro`, `Receber`, `Pagar`, `Fluxo`, `Rentabilidade`, `Regras` e `Categorias` pelos menus.
+3. Para reiniciar os dados da sessão, limpe o `sessionStorage` do navegador ou altere a versão da chave local em `assets/js/app-shared.js`.
+4. Teste responsividade em 1440 px, 1024 px, 768 px e 390 px usando as ferramentas de desenvolvedor.
+
+### Correções e integrações de etapas anteriores
+
+- Compras da Etapa 5 passam a atualizar status financeiro quando há conta a pagar vinculada.
+- Compras sem conta a pagar continuam como alerta até confirmação ou justificativa.
+- A Página Inicial passa a refletir os mesmos valores financeiros usados nas listas.
+- A Agenda da Produção passa a exibir vencimentos, previsões de recebimento/pagamento, parcelas e fechamento financeiro.
+- A aba da OS agora cruza receitas, custos, compras, complementos e histórico financeiro.
+
+### Limitações do protótipo
+
+- Todas as operações são simuladas no navegador e não persistem fora da sessão local.
+- As regras fiscais, tributárias, bancárias e contábeis são apenas placeholders visuais.
+- O custo interno por hora de funcionário ainda não é calculado; a estrutura ficou preparada para etapa futura.
+
+Sugestão de commit: `feat: implementa financeiro, fluxo de caixa e rentabilidade`

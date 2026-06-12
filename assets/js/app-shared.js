@@ -1,5 +1,5 @@
 (function(){
-const KEY='melo-reparos-session-v5';
+const KEY='melo-reparos-session-v6';
 function clone(v){return JSON.parse(JSON.stringify(v));}
 function load(){const saved=sessionStorage.getItem(KEY); if(saved) return JSON.parse(saved); const state=clone(window.MeloData); sessionStorage.setItem(KEY,JSON.stringify(state)); return state;}
 function save(state){sessionStorage.setItem(KEY,JSON.stringify(state));}

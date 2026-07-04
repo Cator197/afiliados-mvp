@@ -80,7 +80,7 @@ def _resolver_profile_dir(plataforma: str) -> Path:
     return CHROME_PROFILE_DIR.resolve() / plataforma
 
 
-def _montar_options(profile_dir: Path, plataforma: str) -> Options:
+def build_worker_chrome_options(profile_dir: Path, app_url: str) -> Options:
     options = Options()
     chrome_bin = _resolver_caminho_chrome()
 
@@ -88,7 +88,7 @@ def _montar_options(profile_dir: Path, plataforma: str) -> Options:
         options.binary_location = chrome_bin
 
     # Abre como "app", com menos interface e menos chance de fechar por engano
-    options.add_argument(f"--app={_resolver_portal_url(plataforma)}")
+    options.add_argument(f"--app={app_url}")
     options.add_argument(f"--window-size={CHROME_WINDOW_SIZE}")
 
     options.add_argument("--no-sandbox")
@@ -118,6 +118,13 @@ def _montar_options(profile_dir: Path, plataforma: str) -> Options:
     )
 
     return options
+
+
+def _montar_options(profile_dir: Path, plataforma: str) -> Options:
+    return build_worker_chrome_options(
+        profile_dir=profile_dir,
+        app_url=_resolver_portal_url(plataforma),
+    )
 
 
 def _criar_driver_com_fallback(options: Options):

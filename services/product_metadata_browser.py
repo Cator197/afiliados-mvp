@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
 from config import (
@@ -14,6 +13,7 @@ from config import (
     CHROME_DISPLAY,
     CHROMEDRIVER_PATH,
 )
+from services.browser_manager import build_worker_chrome_options
 
 
 logger = logging.getLogger(__name__)
@@ -35,27 +35,11 @@ def _resolve_chromedriver() -> str | None:
     return None
 
 
-def _build_options(profile_dir: Path) -> Options:
-    options = Options()
-
-    if CHROME_BINARY_PATH:
-        options.binary_location = CHROME_BINARY_PATH
-
-    options.add_argument("--window-size=1280,900")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--no-first-run")
-    options.add_argument("--no-default-browser-check")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--remote-debugging-port=0")
-    options.add_argument(f"--user-data-dir={profile_dir}")
-    options.add_argument("--profile-directory=Default")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-
-    return options
+def _build_options(profile_dir: Path):
+    return build_worker_chrome_options(
+        profile_dir=profile_dir,
+        app_url="https://www.mercadolivre.com.br/",
+    )
 
 
 def _list_running_chrome_processes() -> list[str]:

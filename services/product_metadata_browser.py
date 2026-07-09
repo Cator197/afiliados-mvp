@@ -39,6 +39,7 @@ def _build_options(profile_dir: Path):
     return build_worker_chrome_options(
         profile_dir=profile_dir,
         app_url="https://www.mercadolivre.com.br/",
+        disable_infobars=False,
     )
 
 

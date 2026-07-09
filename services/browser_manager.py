@@ -80,7 +80,7 @@ def _resolver_profile_dir(plataforma: str) -> Path:
     return CHROME_PROFILE_DIR.resolve() / plataforma
 
 
-def build_worker_chrome_options(profile_dir: Path, app_url: str) -> Options:
+def build_worker_chrome_options(profile_dir: Path, app_url: str, disable_infobars: bool = True) -> Options:
     options = Options()
     chrome_bin = _resolver_caminho_chrome()
 
@@ -94,7 +94,8 @@ def build_worker_chrome_options(profile_dir: Path, app_url: str) -> Options:
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-extensions")
-    options.add_argument("--disable-infobars")
+    if disable_infobars:
+        options.add_argument("--disable-infobars")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--start-maximized")
 
